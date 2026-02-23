@@ -33,8 +33,8 @@ async def main():
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
     
-    # Передаем admin_id в роутер
-    dp['admin_id'] = ADMIN_ID
+    # Передаем admin_id через workflow_data
+    dp.workflow_data.update(admin_id=ADMIN_ID)
     
     dp.include_router(handlers.router)
     

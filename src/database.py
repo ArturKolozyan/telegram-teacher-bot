@@ -61,11 +61,13 @@ async def save_students(students: Dict):
 async def add_student(user_id: int, name: str, username: str, timezone_offset: int):
     """Добавить нового ученика"""
     students = await get_students()
+    settings = await get_settings()
     students[str(user_id)] = {
         'user_id': user_id,
         'name': name,
         'username': username,
         'timezone_offset': timezone_offset,
+        'lesson_price': settings.get('default_lesson_price', 1000),
         'registered_at': datetime.now().isoformat()
     }
     await save_students(students)
@@ -125,9 +127,10 @@ async def get_settings() -> Dict:
     """Получить настройки"""
     default_settings = {
         'admin_timezone': 3,  # UTC+3 МСК
-        'reminder_hours_before': 1,
+        'reminder_minutes_before': 60,
         'homework_check_minutes_before': 5,
-        'admin_daily_reminder_time': '08:00'
+        'admin_daily_reminder_time': '08:00',
+        'default_lesson_price': 1000
     }
     return await load_json('settings.json', default_settings)
 
@@ -170,3 +173,11 @@ async def get_homework_response(date: str, time: str, user_id: int) -> Optional[
     responses = await get_homework_responses()
     key = f"{date}_{time}_{user_id}"
     return responses.get(key)
+
+
+async def update_student_price(user_id: int, price: int):
+    """Обновить цену урока для ученика"""
+    students = await get_students()
+    if str(user_id) in students:
+        students[str(user_id)]['lesson_price'] = price
+        await save_students(students)

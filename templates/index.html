@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutor Management System</title>
+    <link rel="stylesheet" href="/static/css/style.css?v={{ version }}">
+</head>
+<body>
+    <!-- Навигация -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="brand-icon">📚</span>
+                <span class="brand-text">Tutor System</span>
+            </div>
+            <div class="nav-links">
+                <a href="#" class="nav-link active" data-page="dashboard">
+                    <span class="link-icon">📊</span>
+                    Личный кабинет
+                </a>
+                <a href="#" class="nav-link" data-page="schedule">
+                    <span class="link-icon">📅</span>
+                    Расписание
+                </a>
+                <a href="#" class="nav-link" data-page="students">
+                    <span class="link-icon">👥</span>
+                    Ученики
+                </a>
+                <a href="#" class="nav-link" data-page="settings">
+                    <span class="link-icon">⚙️</span>
+                    Настройки
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Контейнер страниц -->
+    <div class="page-container">
+        
+        <!-- Страница: Личный кабинет -->
+        <div id="dashboard" class="page active">
+            <div class="page-header">
+                <h1>Личный кабинет</h1>
+                <p class="page-subtitle">Статистика и аналитика</p>
+            </div>
+            
+            <div class="stats-table-wrapper">
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>Показатель</th>
+                            <th>Значение</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="stat-name">
+                                <span class="stat-icon-small">📚</span>
+                                Уроков в неделю
+                            </td>
+                            <td class="stat-value-cell" id="lessonsPerWeek">0</td>
+                        </tr>
+                        <tr>
+                            <td class="stat-name">
+                                <span class="stat-icon-small">📅</span>
+                                Уроков в месяц
+                            </td>
+                            <td class="stat-value-cell" id="lessonsPerMonth">0</td>
+                        </tr>
+                        <tr>
+                            <td class="stat-name">
+                                <span class="stat-icon-small">📊</span>
+                                Уроков в день (среднее)
+                            </td>
+                            <td class="stat-value-cell" id="lessonsPerDay">0</td>
+                        </tr>
+                        <tr class="highlight-row">
+                            <td class="stat-name">
+                                <span class="stat-icon-small">💰</span>
+                                Доход за неделю
+                            </td>
+                            <td class="stat-value-cell stat-money" id="incomePerWeek">0 ₽</td>
+                        </tr>
+                        <tr class="highlight-row">
+                            <td class="stat-name">
+                                <span class="stat-icon-small">💵</span>
+                                Доход за месяц
+                            </td>
+                            <td class="stat-value-cell stat-money" id="incomePerMonth">0 ₽</td>
+                        </tr>
+                        <tr>
+                            <td class="stat-name">
+                                <span class="stat-icon-small">👥</span>
+                                Всего учеников
+                            </td>
+                            <td class="stat-value-cell" id="studentsCount">0</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Страница: Расписание -->
+        <div id="schedule" class="page">
+            <div class="page-header">
+                <h1>Расписание занятий</h1>
+                <p class="page-subtitle">Нажмите на ячейку для управления уроком</p>
+            </div>
+            
+            <div class="schedule-wrapper">
+                <div class="schedule-table-container">
+                    <table class="schedule-table" id="scheduleTable">
+                        <thead>
+                            <tr>
+                                <th class="time-column">Время</th>
+                                <th>Понедельник</th>
+                                <th>Вторник</th>
+                                <th>Среда</th>
+                                <th>Четверг</th>
+                                <th>Пятница</th>
+                                <th>Суббота</th>
+                                <th>Воскресенье</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scheduleBody">
+                            <!-- Заполняется JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Страница: Ученики -->
+        <div id="students" class="page">
+            <div class="page-header">
+                <h1>Управление учениками</h1>
+                <p class="page-subtitle">Список всех зарегистрированных учеников</p>
+            </div>
+            
+            <div class="students-table-wrapper">
+                <table class="students-table" id="studentsTable">
+                    <thead>
+                        <tr>
+                            <th>Ученик</th>
+                            <th>Username</th>
+                            <th>Уроков</th>
+                            <th>Цена урока</th>
+                            <th>Часовой пояс</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentsTableBody">
+                        <!-- Заполняется JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Страница: Настройки -->
+        <div id="settings" class="page">
+            <div class="page-header">
+                <h1>Настройки системы</h1>
+                <p class="page-subtitle">Параметры уведомлений и часовые пояса</p>
+            </div>
+            
+            <div class="settings-wrapper">
+                <form id="settingsForm" class="settings-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Часовой пояс (МСК)</label>
+                            <select id="adminTimezone" class="form-input" required>
+                                <option value="3" selected>МСК (UTC+3)</option>
+                            </select>
+                            <small class="form-hint">Московское время</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Напоминание за (минут)</label>
+                            <input type="number" id="reminderMinutes" class="form-input" min="0" max="1440" value="60" required>
+                            <small class="form-hint">За сколько минут до урока напоминать</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Проверка ДЗ за (минут)</label>
+                            <input type="number" id="reportMinutes" class="form-input" min="0" max="120" value="5" required>
+                            <small class="form-hint">За сколько минут до урока проверять ДЗ</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Утреннее напоминание</label>
+                            <input type="time" id="dailyTime" class="form-input" value="08:00" required>
+                            <small class="form-hint">Время ежедневного напоминания</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Цена урока по умолчанию (₽)</label>
+                            <input type="number" id="defaultPrice" class="form-input" min="0" step="100" value="1000" required>
+                            <small class="form-hint">Стандартная цена для новых учеников</small>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Сохранить настройки</button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Модальное окно: Управление уроком -->
+    <div id="lessonModal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Урок</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Если урок существует -->
+                <div id="existingLesson" style="display: none;">
+                    <div class="lesson-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Ученик:</span>
+                            <span class="detail-value" id="lessonStudent"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">День:</span>
+                            <span class="detail-value" id="lessonDay"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Время:</span>
+                            <span class="detail-value" id="lessonTime"></span>
+                        </div>
+                    </div>
+                    <button class="btn btn-danger btn-block" id="deleteBtn">Удалить урок</button>
+                </div>
+                
+                <!-- Если урок не существует -->
+                <div id="newLesson" style="display: none;">
+                    <form id="addLessonForm">
+                        <div class="form-group">
+                            <label>Выберите ученика</label>
+                            <select id="studentSelect" class="form-input" required>
+                                <option value="">Загрузка...</option>
+                            </select>
+                        </div>
+                        
+                        <div class="lesson-info-box">
+                            <div class="info-item">
+                                <span class="info-label">День:</span>
+                                <span id="newLessonDay"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Время:</span>
+                                <span id="newLessonTime"></span>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-success btn-block">Добавить урок</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Редактировать ученика -->
+    <div id="editStudentModal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Редактировать ученика</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="editStudentForm">
+                    <input type="hidden" id="editStudentId">
+                    
+                    <div class="form-group">
+                        <label>Имя ученика</label>
+                        <input type="text" id="editStudentName" class="form-input" readonly>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Цена урока (₽)</label>
+                        <input type="number" id="editStudentPrice" class="form-input" min="0" step="100" required>
+                        <small class="form-hint">Индивидуальная цена для этого ученика</small>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-success btn-block">Сохранить</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js?v={{ version }}"></script>
+</body>
+</html>

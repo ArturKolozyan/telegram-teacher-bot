@@ -50,7 +50,7 @@ async def check_and_send_reminders(bot: Bot):
     try:
         settings = await db.get_settings()
         admin_tz_offset = settings['admin_timezone']
-        reminder_hours = settings['reminder_hours_before']
+        reminder_minutes = settings.get('reminder_minutes_before', 60)
         
         # Текущее время в часовом поясе админа
         admin_tz = pytz.timezone(f'Etc/GMT{-admin_tz_offset:+d}')
@@ -60,7 +60,7 @@ async def check_and_send_reminders(bot: Bot):
         current_minute = now_admin.replace(second=0, microsecond=0)
         
         # Время урока = текущее время + время напоминания
-        lesson_time = current_minute + timedelta(hours=reminder_hours)
+        lesson_time = current_minute + timedelta(minutes=reminder_minutes)
         
         # Получаем уроки на это время
         lessons = await get_lessons_for_datetime(lesson_time, admin_tz_offset)

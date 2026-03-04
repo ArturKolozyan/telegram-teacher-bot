@@ -1,46 +1,49 @@
 """
 Запуск веб-сервера и Telegram бота одновременно
+Для Railway используется asyncio вместо multiprocessing
 """
 import asyncio
 import uvicorn
-from multiprocessing import Process
 import sys
 import os
 
 # Добавляем src в путь
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-def run_bot():
+async def run_bot():
     """Запуск Telegram бота"""
     from bot_notifications import main
-    asyncio.run(main())
+    await main()
 
-def run_web():
+async def run_web():
     """Запуск веб-сервера"""
     from web_app import app
     import database as db
     db.ensure_data_dir()
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    
+    # Получаем порт из переменной окружения (для Railway)
+    port = int(os.getenv('PORT', 8000))
+    
+    config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
 
-if __name__ == "__main__":
+async def main():
+    """Запуск бота и веб-сервера параллельно"""
     print("🚀 Запуск системы...")
     print("📱 Telegram бот: запускается...")
-    print("🌐 Веб-сервер: http://localhost:8000")
+    print("🌐 Веб-сервер: запускается...")
     print("\nДля остановки нажмите Ctrl+C\n")
     
-    bot_process = Process(target=run_bot, name="TelegramBot")
-    web_process = Process(target=run_web, name="WebServer")
-    
+    # Запускаем оба процесса параллельно
+    await asyncio.gather(
+        run_bot(),
+        run_web()
+    )
+
+if __name__ == "__main__":
     try:
-        bot_process.start()
-        web_process.start()
-        
-        bot_process.join()
-        web_process.join()
+        asyncio.run(main())
     except KeyboardInterrupt:
         print("\n\n⏹️  Остановка системы...")
-        bot_process.terminate()
-        web_process.terminate()
-        bot_process.join()
-        web_process.join()
         print("✅ Система остановлена")

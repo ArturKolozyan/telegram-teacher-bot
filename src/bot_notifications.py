@@ -122,10 +122,13 @@ async def show_admin_menu(message: Message):
         resize_keyboard=True
     )
     
+    # Получаем URL сайта из переменной окружения
+    web_url = os.getenv('WEB_URL', 'http://localhost:8000')
+    
     await message.answer(
         "👨‍💼 Панель администратора\n\n"
-        "Управление расписанием и учениками доступно на сайте:\n"
-        "http://localhost:8000",
+        f"Управление расписанием и учениками доступно на сайте:\n"
+        f"{web_url}",
         reply_markup=keyboard
     )
 
@@ -340,11 +343,14 @@ async def send_notification_to_server(user_id: int, student_name: str, lesson_da
             'reason': reason
         }
         
+        # Получаем URL сервера из переменной окружения или используем localhost
+        server_url = os.getenv('WEB_SERVER_URL', 'http://localhost:8000')
+        
         # Отправляем на веб-сервер
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.post(
-                    'http://localhost:8000/api/notifications/new',
+                    f'{server_url}/api/notifications/new',
                     json=notification_data,
                     timeout=aiohttp.ClientTimeout(total=2)
                 ) as response:

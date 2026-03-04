@@ -1,18 +1,19 @@
 """
-Telegram бот только для уведомлений ученикам
-Админ-функции убраны, управление через веб-интерфейс
+Telegram бот для учеников и админа
 """
 import asyncio
 import logging
 import os
+from datetime import datetime
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
+import pytz
 
 import database as db
 import scheduler as sched
@@ -20,12 +21,12 @@ import scheduler as sched
 load_dotenv()
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
+ADMIN_ID = int(os.getenv('ADMIN_ID', 0))
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-
 logger = logging.getLogger(__name__)
 
 router = Router()
@@ -37,52 +38,53 @@ class StudentRegistration(StatesGroup):
 class HomeworkReason(StatesGroup):
     waiting_for_reason = State()
 
-# === Команда /start для учеников ===
+# === КОМАНДА /start ===
 
 @router.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext):
     user_id = message.from_user.id
     
-    # Постоянная клавиатура
-    reply_keyboard = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="📅 Мои уроки")]],
-        resize_keyboard=True
-    )
-    
-    # Проверяем зарегистрирован ли ученик
-    student = await db.get_student(user_id)
-    
-    if student:
-        await message.answer("👋 Добро пожаловать!", reply_markup=reply_keyboard)
-        await show_student_menu(message)
+    # Проверяем - админ или ученик
+    if user_id == ADMIN_ID:
+        await show_admin_menu(message)
     else:
-        # Регистрация
-        await message.answer(
-            "👋 Привет! Я бот-помощник для учеников.\n\n"
-            "Для начала укажи свой часовой пояс:",
-            reply_markup=reply_keyboard
-        )
+        # Проверяем зарегистрирован ли ученик
+        student = await db.get_student(user_id)
         
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="UTC+1", callback_data="tz_1"),
-                InlineKeyboardButton(text="UTC+2", callback_data="tz_2"),
-                InlineKeyboardButton(text="UTC+3 МСК", callback_data="tz_3")
-            ],
-            [
-                InlineKeyboardButton(text="UTC+4", callback_data="tz_4"),
-                InlineKeyboardButton(text="UTC+5", callback_data="tz_5"),
-                InlineKeyboardButton(text="UTC+6", callback_data="tz_6")
-            ]
-        ])
-        
-        await message.answer("Выбери свой часовой пояс:", reply_markup=keyboard)
-        await state.set_state(StudentRegistration.waiting_for_timezone)
+        if student:
+            await show_student_menu(message)
+        else:
+            await start_registration(message, state)
 
-# === Регистрация ученика ===
+# === РЕГИСТРАЦИЯ УЧЕНИКА ===
+
+async def start_registration(message: Message, state: FSMContext):
+    """Начать регистрацию ученика"""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="МСК-2 (UTC+1)", callback_data="tz_1"),
+            InlineKeyboardButton(text="МСК-1 (UTC+2)", callback_data="tz_2")
+        ],
+        [
+            InlineKeyboardButton(text="МСК (UTC+3)", callback_data="tz_3"),
+            InlineKeyboardButton(text="МСК+1 (UTC+4)", callback_data="tz_4")
+        ],
+        [
+            InlineKeyboardButton(text="МСК+2 (UTC+5)", callback_data="tz_5"),
+            InlineKeyboardButton(text="МСК+3 (UTC+6)", callback_data="tz_6")
+        ]
+    ])
+    
+    await message.answer(
+        "👋 Добро пожаловать!\n\n"
+        "Для начала выберите ваш часовой пояс:",
+        reply_markup=keyboard
+    )
+    await state.set_state(StudentRegistration.waiting_for_timezone)
 
 @router.callback_query(F.data.startswith("tz_"), StudentRegistration.waiting_for_timezone)
-async def process_timezone_selection(callback: CallbackQuery, state: FSMContext):
+async def process_timezone(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора часового пояса"""
     timezone_offset = int(callback.data.split("_")[1])
     
     user_id = callback.from_user.id
@@ -91,45 +93,129 @@ async def process_timezone_selection(callback: CallbackQuery, state: FSMContext)
     
     await db.add_student(user_id, name, username, timezone_offset)
     
+    # Определяем текст часового пояса
+    msk_diff = timezone_offset - 3
+    if msk_diff == 0:
+        tz_text = "МСК"
+    elif msk_diff > 0:
+        tz_text = f"МСК+{msk_diff}"
+    else:
+        tz_text = f"МСК{msk_diff}"
+    
     await callback.message.edit_text(
         f"✅ Регистрация завершена!\n\n"
-        f"Твой часовой пояс: UTC+{timezone_offset}\n\n"
-        f"Теперь ты будешь получать напоминания об уроках."
+        f"Ваш часовой пояс: {tz_text}\n\n"
+        f"Теперь вы будете получать напоминания об уроках."
     )
     
     await state.clear()
     await show_student_menu(callback.message)
 
-# === Меню ученика ===
+# === МЕНЮ АДМИНА ===
+
+async def show_admin_menu(message: Message):
+    """Показать меню админа"""
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📅 Расписание на сегодня")]
+        ],
+        resize_keyboard=True
+    )
+    
+    await message.answer(
+        "👨‍💼 Панель администратора\n\n"
+        "Управление расписанием и учениками доступно на сайте:\n"
+        "http://localhost:8000",
+        reply_markup=keyboard
+    )
+
+@router.message(F.text == "📅 Расписание на сегодня")
+async def show_today_schedule_admin(message: Message):
+    """Показать расписание на сегодня для админа"""
+    if message.from_user.id != ADMIN_ID:
+        return
+    
+    settings = await db.get_settings()
+    admin_tz_offset = settings['admin_timezone']
+    
+    admin_tz = pytz.timezone(f'Etc/GMT{-admin_tz_offset:+d}')
+    now = datetime.now(admin_tz)
+    
+    day_name = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'][now.weekday()]
+    
+    day_names_ru = {
+        'monday': 'Понедельник',
+        'tuesday': 'Вторник',
+        'wednesday': 'Среда',
+        'thursday': 'Четверг',
+        'friday': 'Пятница',
+        'saturday': 'Суббота',
+        'sunday': 'Воскресенье'
+    }
+    
+    schedule = await db.get_schedule()
+    students = await db.get_students()
+    
+    today_lessons = []
+    for user_id, user_schedule in schedule.items():
+        for lesson in user_schedule:
+            if lesson['day'] == day_name:
+                student = students.get(user_id)
+                if student:
+                    today_lessons.append({
+                        'time': lesson['time'],
+                        'student': student
+                    })
+    
+    today_lessons.sort(key=lambda x: x['time'])
+    
+    if not today_lessons:
+        await message.answer(
+            f"📅 {day_names_ru[day_name]} {now.strftime('%d.%m.%Y')}\n\n"
+            f"Сегодня уроков нет 😊"
+        )
+    else:
+        text = f"📅 {day_names_ru[day_name]} {now.strftime('%d.%m.%Y')}\n\n"
+        text += f"Уроков: {len(today_lessons)}\n\n"
+        
+        for lesson in today_lessons:
+            name = lesson['student'].get('name', 'Без имени')
+            username = lesson['student'].get('username', '')
+            username_str = f"@{username}" if username else ""
+            text += f"⏰ {lesson['time']} - {name} {username_str}\n"
+        
+        await message.answer(text)
+
+# === МЕНЮ УЧЕНИКА ===
 
 async def show_student_menu(message: Message):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📅 Мои уроки", callback_data="student_schedule")]
-    ])
+    """Показать меню ученика"""
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📚 Мои уроки")]
+        ],
+        resize_keyboard=True
+    )
     
-    await message.answer("Выбери действие:", reply_markup=keyboard)
+    await message.answer(
+        "👋 Главное меню",
+        reply_markup=keyboard
+    )
 
-@router.message(F.text == "📅 Мои уроки")
-async def show_schedule_button(message: Message):
-    await show_student_schedule_message(message)
-
-@router.callback_query(F.data == "student_schedule")
-async def show_student_schedule(callback: CallbackQuery):
-    await show_student_schedule_message(callback.message)
-    await callback.answer()
-
-async def show_student_schedule_message(message: Message):
+@router.message(F.text == "📚 Мои уроки")
+async def show_student_lessons(message: Message):
+    """Показать уроки ученика"""
     user_id = message.from_user.id
     
     student = await db.get_student(user_id)
     if not student:
-        await message.answer("Ошибка: ты не зарегистрирован")
+        await message.answer("❌ Вы не зарегистрированы. Напишите /start")
         return
     
     schedule = await db.get_student_schedule(user_id)
     
     if not schedule:
-        await message.answer("📅 У тебя пока нет уроков в расписании.")
+        await message.answer("📚 У вас пока нет уроков в расписании.")
         return
     
     settings = await db.get_settings()
@@ -154,13 +240,13 @@ async def show_student_schedule_message(message: Message):
             schedule_by_day[day] = []
         schedule_by_day[day].append(lesson['time'])
     
-    message_text = "📅 Твои уроки на неделю:\n\n"
+    text = "📚 Ваши уроки:\n\n"
     
     days_order = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     
     for day in days_order:
         if day in schedule_by_day:
-            message_text += f"📌 {day_names_ru[day]}\n"
+            text += f"📌 {day_names_ru[day]}\n"
             for time in sorted(schedule_by_day[day]):
                 # Конвертируем время
                 hour, minute = map(int, time.split(':'))
@@ -168,15 +254,16 @@ async def show_student_schedule_message(message: Message):
                 user_hour = (hour + time_diff) % 24
                 user_time = f"{user_hour:02d}:{minute:02d}"
                 
-                message_text += f"   ⏰ {user_time}\n"
-            message_text += "\n"
+                text += f"   ⏰ {user_time}\n"
+            text += "\n"
     
-    await message.answer(message_text)
+    await message.answer(text)
 
-# === Обработка ответов по ДЗ ===
+# === ОБРАБОТКА ОТВЕТОВ ПО ДЗ ===
 
 @router.callback_query(F.data.startswith("hw_done_"))
 async def process_homework_done(callback: CallbackQuery):
+    """Ученик сделал ДЗ"""
     parts = callback.data.split("_")
     date = parts[2]
     time = parts[3]
@@ -184,11 +271,23 @@ async def process_homework_done(callback: CallbackQuery):
     
     await db.save_homework_response(date, time, user_id, "done")
     
+    # Отправляем уведомление на сервер
+    student = await db.get_student(user_id)
+    if student:
+        await send_notification_to_server(
+            user_id=user_id,
+            student_name=student['name'],
+            lesson_date=date,
+            lesson_time=time,
+            status="done"
+        )
+    
     await callback.message.edit_text("✅ Отлично! Домашнее задание выполнено.")
     await callback.answer()
 
 @router.callback_query(F.data.startswith("hw_not_done_"))
 async def process_homework_not_done(callback: CallbackQuery, state: FSMContext):
+    """Ученик не сделал ДЗ"""
     parts = callback.data.split("_")
     date = parts[3]
     time = parts[4]
@@ -196,11 +295,12 @@ async def process_homework_not_done(callback: CallbackQuery, state: FSMContext):
     await state.update_data(lesson_date=date, lesson_time=time)
     await state.set_state(HomeworkReason.waiting_for_reason)
     
-    await callback.message.edit_text("Напиши причину, почему домашнее задание не выполнено:")
+    await callback.message.edit_text("Напишите причину, почему домашнее задание не выполнено:")
     await callback.answer()
 
 @router.message(HomeworkReason.waiting_for_reason)
 async def process_homework_reason(message: Message, state: FSMContext):
+    """Получение причины невыполнения ДЗ"""
     reason = message.text
     data = await state.get_data()
     date = data['lesson_date']
@@ -209,8 +309,53 @@ async def process_homework_reason(message: Message, state: FSMContext):
     
     await db.save_homework_response(date, time, user_id, "not_done", reason)
     
+    # Отправляем уведомление на сервер
+    student = await db.get_student(user_id)
+    if student:
+        await send_notification_to_server(
+            user_id=user_id,
+            student_name=student['name'],
+            lesson_date=date,
+            lesson_time=time,
+            status="not_done",
+            reason=reason
+        )
+    
     await message.answer("✅ Спасибо, информация сохранена.")
     await state.clear()
+
+# === ОТПРАВКА УВЕДОМЛЕНИЙ НА СЕРВЕР ===
+
+async def send_notification_to_server(user_id: int, student_name: str, lesson_date: str, lesson_time: str, status: str, reason: str = None):
+    """Отправить уведомление на веб-сервер"""
+    import aiohttp
+    
+    try:
+        notification_data = {
+            'user_id': user_id,
+            'student_name': student_name,
+            'lesson_date': lesson_date,
+            'lesson_time': lesson_time,
+            'status': status,
+            'reason': reason
+        }
+        
+        # Отправляем на веб-сервер
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.post(
+                    'http://localhost:8000/api/notifications/new',
+                    json=notification_data,
+                    timeout=aiohttp.ClientTimeout(total=2)
+                ) as response:
+                    if response.status == 200:
+                        logger.info(f"Уведомление отправлено на сервер для {student_name}")
+            except Exception as e:
+                logger.warning(f"Не удалось отправить на сервер: {e}")
+    except Exception as e:
+        logger.error(f"Ошибка отправки уведомления: {e}")
+
+# === ЗАПУСК БОТА ===
 
 async def main():
     # Создаем папку data если её нет
@@ -226,9 +371,6 @@ async def main():
     # Настройка планировщика
     scheduler = AsyncIOScheduler()
     
-    # Получаем ADMIN_ID из .env для отправки отчетов
-    admin_id = int(os.getenv('ADMIN_ID', 0))
-    
     # Проверка напоминаний каждую минуту
     scheduler.add_job(
         sched.check_and_send_reminders,
@@ -242,7 +384,7 @@ async def main():
         sched.check_and_send_homework_reports,
         'cron',
         minute='*',
-        args=[bot, admin_id]
+        args=[bot, ADMIN_ID]
     )
     
     # Ежедневное напоминание админу
@@ -255,14 +397,14 @@ async def main():
         'cron',
         hour=hour,
         minute=minute,
-        args=[bot, admin_id]
+        args=[bot, ADMIN_ID]
     )
     
     scheduler.start()
     logger.info("Планировщик запущен")
     
     # Запуск бота
-    logger.info("Бот запущен (только уведомления)")
+    logger.info("Бот запущен")
     try:
         await dp.start_polling(bot)
     except Exception as e:

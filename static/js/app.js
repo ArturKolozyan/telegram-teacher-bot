@@ -16,13 +16,17 @@ const DAY_NAMES = {
 let scheduleData = {};
 let studentsData = [];
 let currentModalData = null;
+let notificationsData = [];
+let ws = null;
 
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
     initModals();
+    initWebSocket();
     loadDashboard();
     loadSettings();
+    loadNotifications();
 });
 
 // === Навигация ===
@@ -47,6 +51,8 @@ function initNavigation() {
                 loadSchedule();
             } else if (pageName === 'students') {
                 loadStudents();
+            } else if (pageName === 'notifications') {
+                loadNotifications();
             }
         });
     });
@@ -87,7 +93,6 @@ async function loadSchedule() {
         renderScheduleTable();
     } catch (error) {
         console.error('Error loading schedule:', error);
-        showError('Ошибка загрузки расписания');
     }
 }
 
@@ -215,7 +220,6 @@ async function addLesson() {
     const studentId = document.getElementById('studentSelect').value;
     
     if (!studentId) {
-        alert('Выберите ученика');
         return;
     }
     
@@ -232,20 +236,16 @@ async function addLesson() {
             closeModal();
             await loadSchedule();
             await loadDashboard();
-            showSuccess('Урок добавлен');
         } else {
             const error = await response.json();
-            alert('Ошибка: ' + (error.detail || 'Не удалось добавить урок'));
+            console.error('Error adding lesson:', error);
         }
     } catch (error) {
         console.error('Error adding lesson:', error);
-        alert('Ошибка при добавлении урока');
     }
 }
 
 async function deleteLesson(studentId, day, time) {
-    if (!confirm('Удалить этот урок?')) return;
-    
     try {
         const response = await fetch(`${API_URL}/api/students/${studentId}/schedule?day=${day}&time=${time}`, {
             method: 'DELETE'
@@ -255,13 +255,9 @@ async function deleteLesson(studentId, day, time) {
             closeModal();
             await loadSchedule();
             await loadDashboard();
-            showSuccess('Урок удален');
-        } else {
-            alert('Ошибка при удалении урока');
         }
     } catch (error) {
         console.error('Error deleting lesson:', error);
-        alert('Ошибка при удалении урока');
     }
 }
 
@@ -359,21 +355,19 @@ async function saveStudentPrice() {
     const price = parseInt(document.getElementById('editStudentPrice').value);
     
     try {
-        const response = await fetch(`${API_URL}/api/students/${userId}/price?price=${price}`, {
-            method: 'PUT'
+        const response = await fetch(`${API_URL}/api/students/${userId}/price`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ price: price })
         });
         
         if (response.ok) {
             closeModal();
             await loadStudents();
             await loadDashboard();
-            showSuccess('Цена обновлена');
-        } else {
-            alert('Ошибка при обновлении цены');
         }
     } catch (error) {
         console.error('Error updating price:', error);
-        alert('Ошибка при обновлении цены');
     }
 }
 
@@ -389,13 +383,9 @@ async function deleteStudent(userId, name) {
             await loadStudents();
             await loadSchedule();
             await loadDashboard();
-            showSuccess(`Ученик "${name}" удален`);
-        } else {
-            alert('Ошибка при удалении ученика');
         }
     } catch (error) {
         console.error('Error deleting student:', error);
-        alert('Ошибка при удалении ученика');
     }
 }
 
@@ -434,23 +424,267 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
         });
         
         if (response.ok) {
-            showSuccess('Настройки сохранены! Перезапустите бота для применения изменений.');
-        } else {
-            alert('Ошибка при сохранении настроек');
+            // Настройки сохранены
         }
     } catch (error) {
         console.error('Error saving settings:', error);
-        alert('Ошибка при сохранении настроек');
     }
 });
 
-// === Уведомления ===
-function showSuccess(message) {
-    alert('✅ ' + message);
+// === WebSocket для real-time уведомлений ===
+function initWebSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/notifications`;
+    
+    ws = new WebSocket(wsUrl);
+    
+    ws.onopen = () => {
+        console.log('WebSocket connected');
+    };
+    
+    ws.onmessage = (event) => {
+        const notification = JSON.parse(event.data);
+        handleNewNotification(notification);
+    };
+    
+    ws.onclose = () => {
+        console.log('WebSocket disconnected, reconnecting...');
+        setTimeout(initWebSocket, 3000);
+    };
+    
+    ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+    };
 }
 
-function showError(message) {
-    alert('❌ ' + message);
+function handleNewNotification(notification) {
+    // Добавляем в список
+    notificationsData.unshift(notification);
+    
+    // Обновляем badge
+    updateNotificationBadge();
+    
+    // Если на странице уведомлений - обновляем
+    if (document.getElementById('notifications').classList.contains('active')) {
+        renderNotifications();
+    }
+    
+    // Показываем визуальное уведомление в углу экрана
+    showToastNotification(notification);
+    
+    // Воспроизводим звук
+    playNotificationSound();
+    
+    // Показываем браузерное уведомление
+    if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Новый ответ от ученика', {
+            body: `${notification.student_name}: ${notification.status === 'done' ? 'ДЗ выполнено ✅' : 'ДЗ не выполнено ❌'}`,
+            icon: '/static/favicon.ico',
+            tag: 'homework-notification'
+        });
+    }
+}
+
+function showToastNotification(notification) {
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    
+    const statusIcon = notification.status === 'done' ? '✅' : '❌';
+    const statusText = notification.status === 'done' ? 'ДЗ выполнено' : 'ДЗ не выполнено';
+    
+    toast.innerHTML = `
+        <div class="toast-header">
+            <strong>Новый ответ</strong>
+            <button class="toast-close" onclick="this.parentElement.parentElement.remove()">×</button>
+        </div>
+        <div class="toast-body">
+            <div>${statusIcon} <strong>${notification.student_name}</strong></div>
+            <div style="font-size: 0.875rem; color: #64748b; margin-top: 0.25rem;">${statusText}</div>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Анимация появления
+    setTimeout(() => toast.classList.add('show'), 10);
+    
+    // Автоматически убираем через 5 секунд
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+
+function playNotificationSound() {
+    // Простой звуковой сигнал через Web Audio API
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.5);
+    } catch (e) {
+        console.log('Sound not supported');
+    }
+}
+
+async function loadNotifications() {
+    try {
+        const response = await fetch(`${API_URL}/api/notifications`);
+        const data = await response.json();
+        notificationsData = data.notifications;
+        
+        updateNotificationBadge();
+        renderNotifications();
+        
+        // Запрашиваем разрешение на уведомления
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    } catch (error) {
+        console.error('Error loading notifications:', error);
+    }
+}
+
+function renderNotifications() {
+    const container = document.getElementById('notificationsContainer');
+    
+    if (notificationsData.length === 0) {
+        container.innerHTML = `
+            <div class="notification-empty">
+                <div class="notification-empty-icon">🔔</div>
+                <div>Нет уведомлений</div>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = '';
+    
+    notificationsData.forEach(notification => {
+        const item = createNotificationItem(notification);
+        container.appendChild(item);
+    });
+}
+
+function createNotificationItem(notification) {
+    const div = document.createElement('div');
+    div.className = `notification-item ${notification.read ? '' : 'unread'}`;
+    
+    const statusText = notification.status === 'done' ? '✅ ДЗ выполнено' : '❌ ДЗ не выполнено';
+    const statusClass = notification.status === 'done' ? 'done' : 'not-done';
+    
+    const date = new Date(notification.created_at);
+    const timeStr = date.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    
+    div.innerHTML = `
+        <div class="notification-content">
+            <div class="notification-header">
+                <span class="notification-student">${notification.student_name}</span>
+                <span class="notification-time">${timeStr}</span>
+            </div>
+            <div class="notification-lesson">
+                Урок: ${notification.lesson_date} в ${notification.lesson_time}
+            </div>
+            <div class="notification-status ${statusClass}">
+                ${statusText}
+            </div>
+            ${notification.reason ? `
+                <div class="notification-reason">
+                    <strong>Причина:</strong> ${notification.reason}
+                </div>
+            ` : ''}
+        </div>
+        <div class="notification-actions">
+            ${!notification.read ? `
+                <button class="btn btn-secondary btn-sm" onclick="markNotificationRead('${notification.id}')">
+                    ✓
+                </button>
+            ` : ''}
+            <button class="btn btn-danger btn-sm" onclick="deleteNotification('${notification.id}')">
+                ×
+            </button>
+        </div>
+    `;
+    
+    return div;
+}
+
+function updateNotificationBadge() {
+    const unreadCount = notificationsData.filter(n => !n.read).length;
+    const badge = document.getElementById('notificationBadge');
+    
+    if (unreadCount > 0) {
+        badge.textContent = unreadCount;
+        badge.style.display = 'inline-block';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+async function markNotificationRead(notificationId) {
+    try {
+        await fetch(`${API_URL}/api/notifications/${notificationId}/read`, {
+            method: 'POST'
+        });
+        
+        const notification = notificationsData.find(n => n.id === notificationId);
+        if (notification) {
+            notification.read = true;
+        }
+        
+        updateNotificationBadge();
+        renderNotifications();
+    } catch (error) {
+        console.error('Error marking notification as read:', error);
+    }
+}
+
+async function deleteNotification(notificationId) {
+    try {
+        await fetch(`${API_URL}/api/notifications/${notificationId}`, {
+            method: 'DELETE'
+        });
+        
+        notificationsData = notificationsData.filter(n => n.id !== notificationId);
+        
+        updateNotificationBadge();
+        renderNotifications();
+    } catch (error) {
+        console.error('Error deleting notification:', error);
+    }
+}
+
+async function clearAllNotifications() {
+    if (!confirm('Удалить все уведомления?')) return;
+    
+    try {
+        await fetch(`${API_URL}/api/notifications/clear-all`, {
+            method: 'POST'
+        });
+        
+        notificationsData = [];
+        updateNotificationBadge();
+        renderNotifications();
+    } catch (error) {
+        console.error('Error clearing notifications:', error);
+    }
 }
 
 // === Меню настроек ученика ===

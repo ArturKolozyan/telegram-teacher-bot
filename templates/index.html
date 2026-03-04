@@ -27,6 +27,11 @@
                     <span class="link-icon">👥</span>
                     Ученики
                 </a>
+                <a href="#" class="nav-link" data-page="notifications">
+                    <span class="link-icon">🔔</span>
+                    Уведомления
+                    <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+                </a>
                 <a href="#" class="nav-link" data-page="settings">
                     <span class="link-icon">⚙️</span>
                     Настройки
@@ -157,6 +162,24 @@
             </div>
         </div>
 
+        <!-- Страница: Уведомления -->
+        <div id="notifications" class="page">
+            <div class="page-header">
+                <h1>Уведомления</h1>
+                <p class="page-subtitle">Ответы учеников по домашнему заданию</p>
+            </div>
+            
+            <div class="notifications-actions">
+                <button class="btn btn-secondary" onclick="clearAllNotifications()">
+                    🗑️ Очистить все
+                </button>
+            </div>
+            
+            <div class="notifications-container" id="notificationsContainer">
+                <!-- Заполняется JS -->
+            </div>
+        </div>
+
         <!-- Страница: Настройки -->
         <div id="settings" class="page">
             <div class="page-header">
@@ -199,7 +222,7 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label>Цена урока по умолчанию (₽)</label>
-                            <input type="number" id="defaultPrice" class="form-input" min="0" step="100" value="1000" required>
+                            <input type="number" id="defaultPrice" class="form-input" min="0" step="1" value="1000" required>
                             <small class="form-hint">Стандартная цена для новых учеников</small>
                         </div>
                     </div>
@@ -286,7 +309,7 @@
                     
                     <div class="form-group">
                         <label>Цена урока (₽)</label>
-                        <input type="number" id="editStudentPrice" class="form-input" min="0" step="100" required>
+                        <input type="number" id="editStudentPrice" class="form-input" min="0" step="1" required>
                         <small class="form-hint">Индивидуальная цена для этого ученика</small>
                     </div>
                     

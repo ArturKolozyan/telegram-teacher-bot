@@ -1,16 +1,18 @@
 """
 FastAPI веб-приложение для админ-панели
 """
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Set
 import database as db
 from datetime import datetime
 import os
 import time
+import json
+import asyncio
 
 app = FastAPI(title="Tutor Bot Admin Panel")
 
@@ -25,6 +27,9 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 # Версия для кэш-бастинга
 CACHE_VERSION = str(int(time.time()))
+
+# WebSocket connections
+active_connections: Set[WebSocket] = set()
 
 # Модели данных
 class Student(BaseModel):
@@ -65,6 +70,8 @@ async def get_students():
     """Получить список всех учеников"""
     students = await db.get_students()
     schedule = await db.get_schedule()
+    settings = await db.get_settings()
+    default_price = settings.get('default_lesson_price', 1000)
     
     result = []
     for user_id, student in students.items():
@@ -75,6 +82,7 @@ async def get_students():
             "username": student.get("username"),
             "timezone_offset": student.get("timezone_offset"),
             "lessons_count": len(student_schedule),
+            "lesson_price": student.get("lesson_price", default_price),
             "schedule": student_schedule
         })
     
@@ -226,6 +234,15 @@ async def update_student_price(user_id: int, price: int):
     await db.update_student_price(user_id, price)
     return {"status": "success", "message": "Price updated"}
 
+class StudentPrice(BaseModel):
+    price: int
+
+@app.post("/api/students/{user_id}/price")
+async def update_student_price_post(user_id: int, data: StudentPrice):
+    """Обновить цену урока для ученика (POST)"""
+    await db.update_student_price(user_id, data.price)
+    return {"status": "success", "message": "Price updated"}
+
 @app.get("/api/dashboard/stats")
 async def get_dashboard_stats():
     """Получить статистику для личного кабинета"""
@@ -286,3 +303,88 @@ if __name__ == "__main__":
     import uvicorn
     db.ensure_data_dir()
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+# === WebSocket для уведомлений ===
+
+@app.websocket("/ws/notifications")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    active_connections.add(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        active_connections.remove(websocket)
+
+async def broadcast_notification(notification: dict):
+    """Отправить уведомление всем подключенным клиентам"""
+    if active_connections:
+        message = json.dumps(notification)
+        for connection in active_connections.copy():
+            try:
+                await connection.send_text(message)
+            except:
+                active_connections.remove(connection)
+
+# === API для уведомлений ===
+
+@app.get("/api/notifications")
+async def get_notifications():
+    """Получить все уведомления"""
+    notifications = await db.get_notifications()
+    
+    # Сортируем по времени создания (новые первые)
+    sorted_notifications = sorted(
+        notifications.values(),
+        key=lambda x: x['created_at'],
+        reverse=True
+    )
+    
+    return {"notifications": sorted_notifications}
+
+@app.post("/api/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str):
+    """Отметить уведомление как прочитанное"""
+    await db.mark_notification_read(notification_id)
+    return {"status": "success"}
+
+@app.delete("/api/notifications/{notification_id}")
+async def delete_notification(notification_id: str):
+    """Удалить уведомление"""
+    await db.delete_notification(notification_id)
+    return {"status": "success"}
+
+@app.post("/api/notifications/clear-all")
+async def clear_all_notifications():
+    """Очистить все уведомления"""
+    await db.save_notifications({})
+    return {"status": "success"}
+
+@app.post("/api/notifications/broadcast")
+async def broadcast_notification_endpoint(notification: dict):
+    """Endpoint для бота чтобы отправить уведомление через WebSocket"""
+    await broadcast_notification(notification)
+    return {"status": "success"}
+
+@app.post("/api/notifications/new")
+async def create_notification(notification: dict):
+    """Создать новое уведомление и разослать через WebSocket"""
+    # Сохраняем в базу
+    notification_id = await db.add_notification(
+        user_id=notification['user_id'],
+        student_name=notification['student_name'],
+        lesson_date=notification['lesson_date'],
+        lesson_time=notification['lesson_time'],
+        status=notification['status'],
+        reason=notification.get('reason')
+    )
+    
+    # Получаем полное уведомление
+    notifications = await db.get_notifications()
+    full_notification = notifications.get(notification_id)
+    
+    # Отправляем через WebSocket
+    if full_notification:
+        await broadcast_notification(full_notification)
+    
+    return {"status": "success", "notification_id": notification_id}

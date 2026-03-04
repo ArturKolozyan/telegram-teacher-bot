@@ -181,3 +181,48 @@ async def update_student_price(user_id: int, price: int):
     if str(user_id) in students:
         students[str(user_id)]['lesson_price'] = price
         await save_students(students)
+
+
+# === Работа с уведомлениями ===
+
+async def get_notifications() -> Dict:
+    """Получить все уведомления"""
+    return await load_json('notifications.json', {})
+
+async def save_notifications(notifications: Dict):
+    """Сохранить уведомления"""
+    await save_json('notifications.json', notifications, 'homework')
+
+async def add_notification(user_id: int, student_name: str, lesson_date: str, lesson_time: str, status: str, reason: str = None):
+    """Добавить уведомление"""
+    notifications = await get_notifications()
+    
+    notification_id = f"{datetime.now().timestamp()}"
+    notifications[notification_id] = {
+        'id': notification_id,
+        'user_id': user_id,
+        'student_name': student_name,
+        'lesson_date': lesson_date,
+        'lesson_time': lesson_time,
+        'status': status,
+        'reason': reason,
+        'created_at': datetime.now().isoformat(),
+        'read': False
+    }
+    
+    await save_notifications(notifications)
+    return notification_id
+
+async def mark_notification_read(notification_id: str):
+    """Отметить уведомление как прочитанное"""
+    notifications = await get_notifications()
+    if notification_id in notifications:
+        notifications[notification_id]['read'] = True
+        await save_notifications(notifications)
+
+async def delete_notification(notification_id: str):
+    """Удалить уведомление"""
+    notifications = await get_notifications()
+    if notification_id in notifications:
+        del notifications[notification_id]
+        await save_notifications(notifications)

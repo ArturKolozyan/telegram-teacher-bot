@@ -100,15 +100,15 @@ async def check_and_send_reminders(bot: Bot):
                 f"🔔 Напоминание об уроке!\n\n"
                 f"{day_names_ru[lesson['day']]} {user_lesson_time.strftime('%d.%m')}\n"
                 f"⏰ {user_lesson_time.strftime('%H:%M')}\n\n"
-                f"Домашнее задание выполнено?"
+                f"Сделал ли ты домашнее задание?"
             )
             
             # Клавиатура
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [
-                    InlineKeyboardButton(text="✅ Сделано", callback_data=f"hw_done_{date_str}_{lesson['time']}"),
-                    InlineKeyboardButton(text="❌ Не сделано", callback_data=f"hw_not_done_{date_str}_{lesson['time']}")
+                    InlineKeyboardButton(text="✅ Да, сделал", callback_data=f"hw_done_{date_str}_{lesson['time']}"),
+                    InlineKeyboardButton(text="❌ Нет, не сделал", callback_data=f"hw_not_done_{date_str}_{lesson['time']}")
                 ]
             ])
             
@@ -122,7 +122,7 @@ async def check_and_send_reminders(bot: Bot):
         logging.error(f"Ошибка в check_and_send_reminders: {e}")
 
 async def check_and_send_homework_reports(bot: Bot, admin_id: int):
-    """Проверить и отправить отчеты по ДЗ админу"""
+    """Проверить и отправить уведомление админу о неответивших учениках"""
     try:
         settings = await db.get_settings()
         admin_tz_offset = settings['admin_timezone']
@@ -132,8 +132,11 @@ async def check_and_send_homework_reports(bot: Bot, admin_id: int):
         admin_tz = pytz.timezone(f'Etc/GMT{-admin_tz_offset:+d}')
         now_admin = datetime.now(admin_tz)
         
+        # Округляем до минут
+        current_minute = now_admin.replace(second=0, microsecond=0)
+        
         # Время урока = текущее время + время отчета
-        lesson_time = now_admin + timedelta(minutes=report_minutes)
+        lesson_time = current_minute + timedelta(minutes=report_minutes)
         
         # Получаем уроки на это время
         lessons = await get_lessons_for_datetime(lesson_time, admin_tz_offset)
@@ -141,51 +144,43 @@ async def check_and_send_homework_reports(bot: Bot, admin_id: int):
         if not lessons:
             return
         
-        # Группируем уроки по времени (для групповых занятий)
-        lessons_by_time = {}
-        for lesson in lessons:
-            key = f"{lesson['day']}_{lesson['time']}"
-            if key not in lessons_by_time:
-                lessons_by_time[key] = []
-            lessons_by_time[key].append(lesson)
+        # Собираем учеников которые не ответили
+        no_response_students = []
         
-        # Отправляем отчет по каждому уроку
-        for time_key, lesson_group in lessons_by_time.items():
+        for lesson in lessons:
+            user_id = lesson['user_id']
+            student = lesson['student']
             date_str = lesson_time.strftime('%Y-%m-%d')
-            time_str = lesson_group[0]['time']
+            time_str = lesson['time']
             
-            message = f"📊 Урок через {report_minutes} минут\n"
-            message += f"{lesson_time.strftime('%d.%m')} в {time_str}\n\n"
+            # Получаем ответ ученика
+            response = await db.get_homework_response(date_str, time_str, user_id)
             
-            for lesson in lesson_group:
-                user_id = lesson['user_id']
-                student = lesson['student']
-                
-                # Получаем ответ ученика
-                response = await db.get_homework_response(date_str, time_str, user_id)
-                
+            # Если ученик не ответил (pending или нет ответа)
+            if not response or response['status'] == 'pending':
                 name = student.get('name', 'Без имени')
                 username = student.get('username', '')
                 username_str = f"@{username}" if username else ""
                 
-                message += f"{name} ({username_str}):\n"
-                
-                if not response or response['status'] == 'pending':
-                    message += "⚠️ Не ответил\n\n"
-                elif response['status'] == 'done':
-                    message += "✅ Сделано\n\n"
-                else:
-                    message += f"❌ Не сделано\n"
-                    if response.get('reason'):
-                        message += f"Причина: {response['reason']}\n\n"
-                    else:
-                        message += "\n"
+                no_response_students.append({
+                    'name': name,
+                    'username': username_str,
+                    'time': time_str
+                })
+        
+        # Если есть неответившие - отправляем уведомление
+        if no_response_students:
+            message = f"⚠️ Ученики не ответили на напоминание\n\n"
+            message += f"Урок через {report_minutes} минут ({lesson_time.strftime('%d.%m в %H:%M')})\n\n"
+            
+            for student in no_response_students:
+                message += f"• {student['name']} {student['username']}\n"
             
             try:
                 await bot.send_message(admin_id, message)
-                logging.info(f"Отправлен отчет по ДЗ админу")
+                logging.info(f"Отправлено уведомление админу о неответивших учениках")
             except Exception as e:
-                logging.error(f"Не удалось отправить отчет админу: {e}")
+                logging.error(f"Не удалось отправить уведомление админу: {e}")
     
     except Exception as e:
         logging.error(f"Ошибка в check_and_send_homework_reports: {e}")

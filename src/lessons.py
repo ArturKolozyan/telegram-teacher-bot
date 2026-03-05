@@ -237,6 +237,68 @@ async def get_stats_for_month(year: int, month: int) -> Dict:
     }
 
 
+async def get_stats_for_year(year: int) -> Dict:
+    """Получить статистику за год"""
+    start_date = f"{year}-01-01"
+    end_date = f"{year}-12-31"
+    
+    lessons = await get_lessons_by_date_range(start_date, end_date)
+    
+    total_lessons = len(lessons)
+    completed_lessons = len([l for l in lessons if l['completed']])
+    pending_lessons = total_lessons - completed_lessons
+    
+    completed_income = sum(l['price'] for l in lessons if l['completed'])
+    expected_income = sum(l['price'] for l in lessons if not l['completed'])
+    total_income = completed_income + expected_income
+    
+    return {
+        'total_lessons': total_lessons,
+        'completed_lessons': completed_lessons,
+        'pending_lessons': pending_lessons,
+        'completed_income': completed_income,
+        'expected_income': expected_income,
+        'total_income': total_income
+    }
+
+
+async def get_history_stats() -> Dict:
+    """Получить историю статистики по месяцам"""
+    lessons = await load_lessons()
+    
+    # Группируем уроки по годам и месяцам
+    history = {}
+    
+    for lesson in lessons.values():
+        date_parts = lesson['date'].split('-')
+        year = int(date_parts[0])
+        month = int(date_parts[1])
+        
+        key = f"{year}-{month:02d}"
+        
+        if key not in history:
+            history[key] = {
+                'year': year,
+                'month': month,
+                'total_lessons': 0,
+                'completed_lessons': 0,
+                'completed_income': 0,
+                'total_income': 0
+            }
+        
+        history[key]['total_lessons'] += 1
+        history[key]['total_income'] += lesson['price']
+        
+        if lesson['completed']:
+            history[key]['completed_lessons'] += 1
+            history[key]['completed_income'] += lesson['price']
+    
+    # Сортируем по дате (новые первые)
+    sorted_history = sorted(history.values(), key=lambda x: (x['year'], x['month']), reverse=True)
+    
+    return {'history': sorted_history}
+
+
 async def delete_student_lessons(student_id: int):
     """Удалить все уроки ученика"""
     lessons = await load_lessons()

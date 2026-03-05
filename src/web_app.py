@@ -1,7 +1,7 @@
 """
 FastAPI веб-приложение для админ-панели
 """
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends, status, Path
+from fastapi import FastAPI, HTTPException, Request, Depends, status, Path
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -34,9 +34,6 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 # Версия для кэш-бастинга
 CACHE_VERSION = str(int(time.time()))
-
-# WebSocket connections
-active_connections: Set[WebSocket] = set()
 
 # Авторизация
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
@@ -341,28 +338,31 @@ async def get_dashboard_stats(authenticated: bool = Depends(verify_token)):
     # Статистика за текущий месяц
     month_stats = await lessons_db.get_stats_for_month(year, month)
     
-    # Статистика за неделю (последние 7 дней)
-    today = now.date()
-    week_ago = today - timedelta(days=7)
-    week_lessons = await lessons_db.get_lessons_by_date_range(
-        week_ago.strftime('%Y-%m-%d'),
-        today.strftime('%Y-%m-%d')
-    )
-    
-    week_completed = sum(l['price'] for l in week_lessons if l['completed'])
+    # Статистика за текущий год
+    year_stats = await lessons_db.get_stats_for_year(year)
     
     # Количество учеников
     students = await db.get_students()
     
     return {
-        "lessons_this_month": month_stats['total_lessons'],
-        "completed_lessons": month_stats['completed_lessons'],
-        "pending_lessons": month_stats['pending_lessons'],
-        "completed_income": month_stats['completed_income'],
-        "expected_income": month_stats['expected_income'],
-        "week_income": week_completed,
+        "current_month": month,
+        "current_year": year,
+        "month_lessons": month_stats['total_lessons'],
+        "month_completed": month_stats['completed_lessons'],
+        "month_pending": month_stats['pending_lessons'],
+        "month_income": month_stats['completed_income'],
+        "month_expected": month_stats['expected_income'],
+        "year_lessons": year_stats['total_lessons'],
+        "year_completed": year_stats['completed_lessons'],
+        "year_income": year_stats['completed_income'],
         "students_count": len(students)
     }
+
+@app.get("/api/dashboard/history")
+async def get_dashboard_history(authenticated: bool = Depends(verify_token)):
+    """Получить историю статистики"""
+    history = await lessons_db.get_history_stats()
+    return history
 
 if __name__ == "__main__":
     import uvicorn
@@ -508,88 +508,3 @@ async def generate_lessons(authenticated: bool = Depends(verify_token)):
     """Сгенерировать уроки из шаблонов"""
     count = await recurring_db.auto_generate_lessons()
     return {"status": "success", "created": count}
-
-# === WebSocket для уведомлений ===
-
-@app.websocket("/ws/notifications")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    active_connections.add(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        active_connections.remove(websocket)
-
-async def broadcast_notification(notification: dict):
-    """Отправить уведомление всем подключенным клиентам"""
-    if active_connections:
-        message = json.dumps(notification)
-        for connection in active_connections.copy():
-            try:
-                await connection.send_text(message)
-            except:
-                active_connections.remove(connection)
-
-# === API для уведомлений ===
-
-@app.get("/api/notifications")
-async def get_notifications(authenticated: bool = Depends(verify_token)):
-    """Получить все уведомления"""
-    notifications = await db.get_notifications()
-    
-    # Сортируем по времени создания (новые первые)
-    sorted_notifications = sorted(
-        notifications.values(),
-        key=lambda x: x['created_at'],
-        reverse=True
-    )
-    
-    return {"notifications": sorted_notifications}
-
-@app.post("/api/notifications/{notification_id}/read")
-async def mark_notification_read(notification_id: str, authenticated: bool = Depends(verify_token)):
-    """Отметить уведомление как прочитанное"""
-    await db.mark_notification_read(notification_id)
-    return {"status": "success"}
-
-@app.delete("/api/notifications/{notification_id}")
-async def delete_notification(notification_id: str, authenticated: bool = Depends(verify_token)):
-    """Удалить уведомление"""
-    await db.delete_notification(notification_id)
-    return {"status": "success"}
-
-@app.post("/api/notifications/clear-all")
-async def clear_all_notifications(authenticated: bool = Depends(verify_token)):
-    """Очистить все уведомления"""
-    await db.save_notifications({})
-    return {"status": "success"}
-
-@app.post("/api/notifications/broadcast")
-async def broadcast_notification_endpoint(notification: dict):
-    """Endpoint для бота чтобы отправить уведомление через WebSocket"""
-    await broadcast_notification(notification)
-    return {"status": "success"}
-
-@app.post("/api/notifications/new")
-async def create_notification(notification: dict):
-    """Создать новое уведомление и разослать через WebSocket"""
-    # Сохраняем в базу
-    notification_id = await db.add_notification(
-        user_id=notification['user_id'],
-        student_name=notification['student_name'],
-        lesson_date=notification['lesson_date'],
-        lesson_time=notification['lesson_time'],
-        status=notification['status'],
-        reason=notification.get('reason')
-    )
-    
-    # Получаем полное уведомление
-    notifications = await db.get_notifications()
-    full_notification = notifications.get(notification_id)
-    
-    # Отправляем через WebSocket
-    if full_notification:
-        await broadcast_notification(full_notification)
-    
-    return {"status": "success", "notification_id": notification_id}

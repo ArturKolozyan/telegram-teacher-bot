@@ -29,10 +29,6 @@
                 <a href="#" class="nav-link" data-page="students">
                     Ученики
                 </a>
-                <a href="#" class="nav-link" data-page="notifications">
-                    Уведомления
-                    <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
-                </a>
                 <a href="#" class="nav-link" data-page="settings">
                     Настройки
                 </a>
@@ -51,19 +47,45 @@
             
             <div class="dashboard-stats">
                 <div class="stats-section">
-                    <h2 class="stats-section-title">Уроки в этом месяце</h2>
+                    <h2 class="stats-section-title">Текущий месяц</h2>
                     <div class="stats-list">
                         <div class="stats-item">
                             <span class="stats-label">Всего уроков:</span>
-                            <span class="stats-value" id="lessonsThisMonth">0</span>
+                            <span class="stats-value" id="monthLessons">0</span>
                         </div>
                         <div class="stats-item">
                             <span class="stats-label">Проведено:</span>
-                            <span class="stats-value" id="completedLessons">0</span>
+                            <span class="stats-value" id="monthCompleted">0</span>
                         </div>
                         <div class="stats-item">
                             <span class="stats-label">Запланировано:</span>
-                            <span class="stats-value" id="pendingLessons">0</span>
+                            <span class="stats-value" id="monthPending">0</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Доход за проведенные:</span>
+                            <span class="stats-value stats-money" id="monthIncome">0 ₽</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Ожидаемый доход:</span>
+                            <span class="stats-value stats-money" id="monthExpected">0 ₽</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-section">
+                    <h2 class="stats-section-title">Текущий год</h2>
+                    <div class="stats-list">
+                        <div class="stats-item">
+                            <span class="stats-label">Всего уроков:</span>
+                            <span class="stats-value" id="yearLessons">0</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Проведено:</span>
+                            <span class="stats-value" id="yearCompleted">0</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Доход за год:</span>
+                            <span class="stats-value stats-money" id="yearIncome">0 ₽</span>
                         </div>
                         <div class="stats-item">
                             <span class="stats-label">Всего учеников:</span>
@@ -71,28 +93,13 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="stats-section">
-                    <h2 class="stats-section-title">Доход</h2>
-                    <div class="stats-list">
-                        <div class="stats-item">
-                            <span class="stats-label">За проведенные уроки:</span>
-                            <span class="stats-value stats-money" id="completedIncome">0 ₽</span>
-                        </div>
-                        <div class="stats-item">
-                            <span class="stats-label">Ожидаемый доход:</span>
-                            <span class="stats-value stats-money" id="expectedIncome">0 ₽</span>
-                        </div>
-                        <div class="stats-item">
-                            <span class="stats-label">За неделю:</span>
-                            <span class="stats-value stats-money" id="weekIncome">0 ₽</span>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <div class="dashboard-actions">
-                <button class="btn btn-danger" onclick="logout()">
+                <button class="btn btn-primary" onclick="openHistoryModal()">
+                    История работы
+                </button>
+                <button class="btn btn-danger dashboard-logout-btn" onclick="logout()">
                     Выйти
                 </button>
             </div>
@@ -173,6 +180,7 @@
                             <th>Уроков</th>
                             <th>Цена урока</th>
                             <th>Часовой пояс</th>
+                            <th>Время у ученика</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -180,24 +188,6 @@
                         <!-- Заполняется JS -->
                     </tbody>
                 </table>
-            </div>
-        </div>
-
-        <!-- Страница: Уведомления -->
-        <div id="notifications" class="page">
-            <div class="page-header">
-                <h1>Уведомления</h1>
-                <p class="page-subtitle">Ответы учеников по домашнему заданию<br><span style="opacity: 0.7; font-size: 0.875rem;">* Уведомления приходят в реальном времени когда ученик отвечает на вопрос о выполнении ДЗ</span></p>
-            </div>
-            
-            <div class="notifications-actions">
-                <button class="btn btn-secondary" onclick="clearAllNotifications()">
-                    🗑️ Очистить все
-                </button>
-            </div>
-            
-            <div class="notifications-container" id="notificationsContainer">
-                <!-- Заполняется JS -->
             </div>
         </div>
 
@@ -252,9 +242,9 @@
                     
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Проверка ДЗ за (минут)</label>
+                            <label>Проверка ответа за (минут)</label>
                             <input type="number" id="reportMinutes" class="form-input" min="0" max="120" value="5" required>
-                            <small class="form-hint">За сколько минут до урока проверять выполнение ДЗ<br><span style="opacity: 0.7;">* Ученик получит запрос о выполнении домашнего задания</span></small>
+                            <small class="form-hint">За сколько минут до урока проверять ответил ли ученик на напоминание<br><span style="opacity: 0.7;">* Если ученик не ответил, вам придет уведомление в Telegram</span></small>
                         </div>
                         
                         <div class="form-group">
@@ -462,6 +452,22 @@
                     
                     <button type="submit" class="btn btn-success btn-block">Сохранить</button>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: История работы -->
+    <div id="historyModal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>История работы</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="history-container" id="historyContainer">
+                    <div class="history-loading">Загрузка...</div>
+                </div>
             </div>
         </div>
     </div>

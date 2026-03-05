@@ -8,8 +8,6 @@ let currentMonth = new Date().getMonth() + 1;
 let lessonsData = [];
 let studentsData = [];
 let currentModalData = null;
-let notificationsData = [];
-let ws = null;
 let adminTimezone = 3; // Часовой пояс репетитора (по умолчанию МСК)
 
 // Инициализация
@@ -17,10 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     initNavigation();
     initModals();
-    initWebSocket();
     loadDashboard();
     loadSettings();
-    loadNotifications();
 });
 
 // === Авторизация ===
@@ -84,8 +80,6 @@ function initNavigation() {
                 loadSchedule();
             } else if (pageName === 'students') {
                 loadStudents();
-            } else if (pageName === 'notifications') {
-                loadNotifications();
             }
         });
     });
@@ -97,12 +91,16 @@ async function loadDashboard() {
         const response = await fetchWithAuth(`${API_URL}/api/dashboard/stats`);
         const data = await response.json();
         
-        document.getElementById('lessonsThisMonth').textContent = data.lessons_this_month;
-        document.getElementById('completedLessons').textContent = data.completed_lessons;
-        document.getElementById('pendingLessons').textContent = data.pending_lessons;
-        document.getElementById('completedIncome').textContent = formatMoney(data.completed_income);
-        document.getElementById('expectedIncome').textContent = formatMoney(data.expected_income);
-        document.getElementById('weekIncome').textContent = formatMoney(data.week_income);
+        document.getElementById('monthLessons').textContent = data.month_lessons;
+        document.getElementById('monthCompleted').textContent = data.month_completed;
+        document.getElementById('monthPending').textContent = data.month_pending;
+        document.getElementById('monthIncome').textContent = formatMoney(data.month_income);
+        document.getElementById('monthExpected').textContent = formatMoney(data.month_expected);
+        
+        document.getElementById('yearLessons').textContent = data.year_lessons;
+        document.getElementById('yearCompleted').textContent = data.year_completed;
+        document.getElementById('yearIncome').textContent = formatMoney(data.year_income);
+        
         document.getElementById('studentsCount').textContent = data.students_count;
     } catch (error) {
         console.error('Error loading dashboard:', error);
@@ -702,7 +700,7 @@ async function deleteLesson(lessonId) {
 // === Ученики ===
 async function loadStudents() {
     const tbody = document.getElementById('studentsTableBody');
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #94a3b8;">Загрузка...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #94a3b8;">Загрузка...</td></tr>';
     
     try {
         const response = await fetchWithAuth(`${API_URL}/api/students`);
@@ -710,14 +708,17 @@ async function loadStudents() {
         studentsData = data.students;
         
         if (studentsData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #94a3b8;">Пока нет учеников</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #94a3b8;">Пока нет учеников</td></tr>';
             return;
         }
         
         renderStudentsTable();
+        
+        // Запускаем обновление времени
+        startStudentTimeUpdates();
     } catch (error) {
         console.error('Error loading students:', error);
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #ef4444;">Ошибка загрузки</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #ef4444;">Ошибка загрузки</td></tr>';
     }
 }
 
@@ -748,6 +749,9 @@ function createStudentRow(student) {
         tzDisplay = `UTC${adminTimezone >= 0 ? '+' : ''}${adminTimezone}${diffFromAdmin}`;
     }
     
+    // Получаем текущее время ученика
+    const studentTime = getCurrentTimeForStudent(tzOffset);
+    
     row.innerHTML = `
         <td>
             <div class="student-name-cell">
@@ -759,6 +763,7 @@ function createStudentRow(student) {
         <td>${student.lessons_count}</td>
         <td class="price-cell">${formatMoney(price)}</td>
         <td>${tzDisplay}</td>
+        <td class="student-time-cell" data-timezone="${tzOffset}" data-user-id="${student.user_id}">${studentTime}</td>
         <td>
             <div class="table-actions">
                 <button class="action-btn action-btn-settings" onclick="toggleStudentMenuTable(event, ${student.user_id})" title="Настройки">
@@ -1023,261 +1028,6 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
         alert('Ошибка сохранения настроек');
     }
 });
-// === WebSocket для real-time уведомлений ===
-function initWebSocket() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/notifications`;
-    
-    ws = new WebSocket(wsUrl);
-    
-    ws.onopen = () => {
-        console.log('WebSocket connected');
-    };
-    
-    ws.onmessage = (event) => {
-        const notification = JSON.parse(event.data);
-        handleNewNotification(notification);
-    };
-    
-    ws.onclose = () => {
-        console.log('WebSocket disconnected, reconnecting...');
-        setTimeout(initWebSocket, 3000);
-    };
-    
-    ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-    };
-}
-
-function handleNewNotification(notification) {
-    // Добавляем в список
-    notificationsData.unshift(notification);
-    
-    // Обновляем badge
-    updateNotificationBadge();
-    
-    // Если на странице уведомлений - обновляем
-    if (document.getElementById('notifications').classList.contains('active')) {
-        renderNotifications();
-    }
-    
-    // Показываем визуальное уведомление в углу экрана
-    showToastNotification(notification);
-    
-    // Воспроизводим звук
-    playNotificationSound();
-    
-    // Показываем браузерное уведомление
-    if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('Новый ответ от ученика', {
-            body: `${notification.student_name}: ${notification.status === 'done' ? 'ДЗ выполнено' : 'ДЗ не выполнено'}`,
-            icon: '/static/favicon.ico',
-            tag: 'homework-notification'
-        });
-    }
-}
-
-function showToastNotification(notification) {
-    const toast = document.createElement('div');
-    toast.className = 'toast-notification';
-    
-    const statusIcon = notification.status === 'done' ? '✓' : '✕';
-    const statusText = notification.status === 'done' ? 'ДЗ выполнено' : 'ДЗ не выполнено';
-    
-    toast.innerHTML = `
-        <div class="toast-header">
-            <strong>Новый ответ</strong>
-            <button class="toast-close" onclick="this.parentElement.parentElement.remove()">×</button>
-        </div>
-        <div class="toast-body">
-            <div>${statusIcon} <strong>${notification.student_name}</strong></div>
-            <div style="font-size: 0.875rem; color: #64748b; margin-top: 0.25rem;">${statusText}</div>
-        </div>
-    `;
-    
-    document.body.appendChild(toast);
-    
-    // Анимация появления
-    setTimeout(() => toast.classList.add('show'), 10);
-    
-    // Автоматически убираем через 5 секунд
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
-    }, 5000);
-}
-
-function playNotificationSound() {
-    // Простой звуковой сигнал через Web Audio API
-    try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
-        
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.5);
-    } catch (e) {
-        console.log('Sound not supported');
-    }
-}
-
-async function loadNotifications() {
-    try {
-        const response = await fetchWithAuth(`${API_URL}/api/notifications`);
-        const data = await response.json();
-        notificationsData = data.notifications;
-        
-        updateNotificationBadge();
-        renderNotifications();
-        
-        // Запрашиваем разрешение на уведомления
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-    } catch (error) {
-        console.error('Error loading notifications:', error);
-    }
-}
-
-function renderNotifications() {
-    const container = document.getElementById('notificationsContainer');
-    
-    if (notificationsData.length === 0) {
-        container.innerHTML = `
-            <div class="notification-empty">
-                <div class="notification-empty-text">Нет уведомлений</div>
-            </div>
-        `;
-        return;
-    }
-    
-    container.innerHTML = '';
-    
-    notificationsData.forEach(notification => {
-        const item = createNotificationItem(notification);
-        container.appendChild(item);
-    });
-}
-
-function createNotificationItem(notification) {
-    const div = document.createElement('div');
-    div.className = `notification-item ${notification.read ? '' : 'unread'}`;
-    
-    const statusText = notification.status === 'done' ? 'ДЗ выполнено' : 'ДЗ не выполнено';
-    const statusClass = notification.status === 'done' ? 'done' : 'not-done';
-    
-    const date = new Date(notification.created_at);
-    const timeStr = date.toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-    
-    div.innerHTML = `
-        <div class="notification-content">
-            <div class="notification-header">
-                <span class="notification-student">${notification.student_name}</span>
-                <span class="notification-time">${timeStr}</span>
-            </div>
-            <div class="notification-lesson">
-                Урок: ${notification.lesson_date} в ${notification.lesson_time}
-            </div>
-            <div class="notification-status ${statusClass}">
-                ${statusText}
-            </div>
-            ${notification.reason ? `
-                <div class="notification-reason">
-                    <strong>Причина:</strong> ${notification.reason}
-                </div>
-            ` : ''}
-        </div>
-        <div class="notification-actions">
-            ${!notification.read ? `
-                <button class="btn btn-secondary btn-sm" onclick="markNotificationRead('${notification.id}')">
-                    ✓
-                </button>
-            ` : ''}
-            <button class="btn btn-danger btn-sm" onclick="deleteNotification('${notification.id}')">
-                ×
-            </button>
-        </div>
-    `;
-    
-    return div;
-}
-
-function updateNotificationBadge() {
-    const unreadCount = notificationsData.filter(n => !n.read).length;
-    const badge = document.getElementById('notificationBadge');
-    
-    if (unreadCount > 0) {
-        badge.textContent = unreadCount;
-        badge.style.display = 'inline-block';
-    } else {
-        badge.style.display = 'none';
-    }
-}
-
-async function markNotificationRead(notificationId) {
-    try {
-        await fetchWithAuth(`${API_URL}/api/notifications/${notificationId}/read`, {
-            method: 'POST'
-        });
-        
-        const notification = notificationsData.find(n => n.id === notificationId);
-        if (notification) {
-            notification.read = true;
-        }
-        
-        updateNotificationBadge();
-        renderNotifications();
-    } catch (error) {
-        console.error('Error marking notification as read:', error);
-    }
-}
-
-async function deleteNotification(notificationId) {
-    try {
-        await fetchWithAuth(`${API_URL}/api/notifications/${notificationId}`, {
-            method: 'DELETE'
-        });
-        
-        notificationsData = notificationsData.filter(n => n.id !== notificationId);
-        
-        updateNotificationBadge();
-        renderNotifications();
-    } catch (error) {
-        console.error('Error deleting notification:', error);
-    }
-}
-
-async function clearAllNotifications() {
-    if (!confirm('Удалить все уведомления?')) return;
-    
-    try {
-        await fetchWithAuth(`${API_URL}/api/notifications/clear-all`, {
-            method: 'POST'
-        });
-        
-        notificationsData = [];
-        updateNotificationBadge();
-        renderNotifications();
-    } catch (error) {
-        console.error('Error clearing notifications:', error);
-    }
-}
-
 // === Меню настроек ученика ===
 function toggleStudentMenu(event, userId) {
     event.stopPropagation();
@@ -1398,4 +1148,142 @@ async function selectManualTime(date, time) {
         console.error('Error moving lesson:', error);
         alert('Ошибка переноса урока');
     }
+}
+
+
+// === История работы ===
+async function openHistoryModal() {
+    const modal = document.getElementById('historyModal');
+    const container = document.getElementById('historyContainer');
+    
+    container.innerHTML = '<div class="history-loading">Загрузка...</div>';
+    modal.classList.add('active');
+    
+    try {
+        const response = await fetchWithAuth(`${API_URL}/api/dashboard/history`);
+        const data = await response.json();
+        
+        if (data.history.length === 0) {
+            container.innerHTML = '<div class="history-empty">История пока пуста</div>';
+            return;
+        }
+        
+        renderHistory(data.history);
+    } catch (error) {
+        console.error('Error loading history:', error);
+        container.innerHTML = '<div class="history-error">Ошибка загрузки истории</div>';
+    }
+}
+
+function renderHistory(history) {
+    const container = document.getElementById('historyContainer');
+    
+    const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 
+                        'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+    
+    // Группируем по годам
+    const byYear = {};
+    history.forEach(item => {
+        if (!byYear[item.year]) {
+            byYear[item.year] = [];
+        }
+        byYear[item.year].push(item);
+    });
+    
+    container.innerHTML = '';
+    
+    // Сортируем годы (новые первые)
+    const years = Object.keys(byYear).sort((a, b) => b - a);
+    
+    years.forEach(year => {
+        const yearDiv = document.createElement('div');
+        yearDiv.className = 'history-year';
+        
+        const yearHeader = document.createElement('h3');
+        yearHeader.className = 'history-year-header';
+        yearHeader.textContent = `${year} год`;
+        yearDiv.appendChild(yearHeader);
+        
+        const monthsGrid = document.createElement('div');
+        monthsGrid.className = 'history-months-grid';
+        
+        byYear[year].forEach(item => {
+            const monthCard = document.createElement('div');
+            monthCard.className = 'history-month-card';
+            
+            monthCard.innerHTML = `
+                <div class="history-month-name">${monthNames[item.month - 1]}</div>
+                <div class="history-month-stats">
+                    <div class="history-stat">
+                        <span class="history-stat-label">Уроков:</span>
+                        <span class="history-stat-value">${item.total_lessons}</span>
+                    </div>
+                    <div class="history-stat">
+                        <span class="history-stat-label">Проведено:</span>
+                        <span class="history-stat-value">${item.completed_lessons}</span>
+                    </div>
+                    <div class="history-stat">
+                        <span class="history-stat-label">Доход:</span>
+                        <span class="history-stat-value history-stat-money">${formatMoney(item.completed_income)}</span>
+                    </div>
+                </div>
+            `;
+            
+            monthsGrid.appendChild(monthCard);
+        });
+        
+        yearDiv.appendChild(monthsGrid);
+        container.appendChild(yearDiv);
+    });
+}
+
+
+// === Время учеников ===
+function getCurrentTimeForStudent(timezoneOffset) {
+    const now = new Date();
+    
+    // Получаем UTC время
+    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+    
+    // Добавляем смещение часового пояса ученика
+    const studentTime = new Date(utcTime + (timezoneOffset * 3600000));
+    
+    const hours = String(studentTime.getHours()).padStart(2, '0');
+    const minutes = String(studentTime.getMinutes()).padStart(2, '0');
+    
+    return `${hours}:${minutes}`;
+}
+
+function updateAllStudentTimes() {
+    // Обновляем время для всех учеников в таблице
+    const timeCells = document.querySelectorAll('.student-time-cell');
+    
+    timeCells.forEach(cell => {
+        const timezone = parseInt(cell.dataset.timezone);
+        cell.textContent = getCurrentTimeForStudent(timezone);
+    });
+}
+
+let studentTimeInterval = null;
+
+function startStudentTimeUpdates() {
+    // Останавливаем предыдущий интервал если есть
+    if (studentTimeInterval) {
+        clearInterval(studentTimeInterval);
+    }
+    
+    // Первое обновление сразу
+    updateAllStudentTimes();
+    
+    // Вычисляем сколько миллисекунд до следующей минуты
+    const now = new Date();
+    const msUntilNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
+    
+    // Запускаем первое обновление в начале следующей минуты
+    setTimeout(() => {
+        updateAllStudentTimes();
+        
+        // Затем обновляем каждую минуту
+        studentTimeInterval = setInterval(updateAllStudentTimes, 60000);
+    }, msUntilNextMinute);
 }

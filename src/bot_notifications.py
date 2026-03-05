@@ -35,9 +35,6 @@ router = Router()
 class StudentRegistration(StatesGroup):
     waiting_for_timezone = State()
 
-class HomeworkReason(StatesGroup):
-    waiting_for_reason = State()
-
 # === КОМАНДА /start ===
 
 @router.message(Command("start"))
@@ -337,92 +334,24 @@ async def process_homework_done(callback: CallbackQuery):
     
     await db.save_homework_response(date, time, user_id, "done")
     
-    # Отправляем уведомление на сервер
-    student = await db.get_student(user_id)
-    if student:
-        await send_notification_to_server(
-            user_id=user_id,
-            student_name=student['name'],
-            lesson_date=date,
-            lesson_time=time,
-            status="done"
-        )
-    
-    await callback.message.edit_text("✅ Отлично! Домашнее задание выполнено.")
+    await callback.message.edit_text("✅ Отлично! Встретимся на уроке!")
     await callback.answer()
 
 @router.callback_query(F.data.startswith("hw_not_done_"))
-async def process_homework_not_done(callback: CallbackQuery, state: FSMContext):
+async def process_homework_not_done(callback: CallbackQuery):
     """Ученик не сделал ДЗ"""
     parts = callback.data.split("_")
     date = parts[3]
     time = parts[4]
+    user_id = callback.from_user.id
     
-    await state.update_data(lesson_date=date, lesson_time=time)
-    await state.set_state(HomeworkReason.waiting_for_reason)
+    await db.save_homework_response(date, time, user_id, "not_done")
     
-    await callback.message.edit_text("Напишите причину, почему домашнее задание не выполнено:")
+    await callback.message.edit_text(
+        "📚 Не беда! У тебя еще есть время до урока.\n\n"
+        "Постарайся сделать домашнее задание, чтобы урок прошел максимально продуктивно!"
+    )
     await callback.answer()
-
-@router.message(HomeworkReason.waiting_for_reason)
-async def process_homework_reason(message: Message, state: FSMContext):
-    """Получение причины невыполнения ДЗ"""
-    reason = message.text
-    data = await state.get_data()
-    date = data['lesson_date']
-    time = data['lesson_time']
-    user_id = message.from_user.id
-    
-    await db.save_homework_response(date, time, user_id, "not_done", reason)
-    
-    # Отправляем уведомление на сервер
-    student = await db.get_student(user_id)
-    if student:
-        await send_notification_to_server(
-            user_id=user_id,
-            student_name=student['name'],
-            lesson_date=date,
-            lesson_time=time,
-            status="not_done",
-            reason=reason
-        )
-    
-    await message.answer("✅ Спасибо, информация сохранена.")
-    await state.clear()
-
-# === ОТПРАВКА УВЕДОМЛЕНИЙ НА СЕРВЕР ===
-
-async def send_notification_to_server(user_id: int, student_name: str, lesson_date: str, lesson_time: str, status: str, reason: str = None):
-    """Отправить уведомление на веб-сервер"""
-    import aiohttp
-    
-    try:
-        notification_data = {
-            'user_id': user_id,
-            'student_name': student_name,
-            'lesson_date': lesson_date,
-            'lesson_time': lesson_time,
-            'status': status,
-            'reason': reason
-        }
-        
-        # Получаем URL сервера из переменной окружения или используем localhost
-        server_url = os.getenv('WEB_SERVER_URL', 'http://localhost:8000')
-        
-        # Отправляем на веб-сервер
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.post(
-                    f'{server_url}/api/notifications/new',
-                    json=notification_data,
-                    timeout=aiohttp.ClientTimeout(total=2)
-                ) as response:
-                    if response.status == 200:
-                        logger.info(f"Уведомление отправлено на сервер для {student_name}")
-            except Exception as e:
-                logger.warning(f"Не удалось отправить на сервер: {e}")
-    except Exception as e:
-        logger.error(f"Ошибка отправки уведомления: {e}")
 
 # === ЗАПУСК БОТА ===
 

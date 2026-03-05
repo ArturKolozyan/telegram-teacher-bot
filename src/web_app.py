@@ -1,18 +1,25 @@
 """
 FastAPI веб-приложение для админ-панели
 """
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends, status, Path
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import List, Optional, Set
 import database as db
-from datetime import datetime
+import lessons as lessons_db
+import recurring_schedule as recurring_db
+from datetime import datetime, timedelta
 import os
 import time
 import json
 import asyncio
+import secrets
+import hashlib
+from calendar import monthrange
+from urllib.parse import unquote
 
 app = FastAPI(title="Tutor Bot Admin Panel")
 
@@ -30,6 +37,30 @@ CACHE_VERSION = str(int(time.time()))
 
 # WebSocket connections
 active_connections: Set[WebSocket] = set()
+
+# Авторизация
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
+security = HTTPBearer()
+active_tokens = set()
+
+def verify_password(password: str) -> bool:
+    """Проверка пароля"""
+    return password == ADMIN_PASSWORD
+
+def create_token() -> str:
+    """Создание токена"""
+    token = secrets.token_urlsafe(32)
+    active_tokens.add(token)
+    return token
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> bool:
+    """Проверка токена"""
+    if credentials.credentials not in active_tokens:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials"
+        )
+    return True
 
 # Модели данных
 class Student(BaseModel):
@@ -53,7 +84,30 @@ class Settings(BaseModel):
     admin_daily_reminder_time: str
     default_lesson_price: int
 
+class LessonCreate(BaseModel):
+    student_id: int
+    date: str  # YYYY-MM-DD
+    time: str  # HH:MM
+    price: int
+
+class LessonMove(BaseModel):
+    new_date: str
+    new_time: str
+
+class RecurringLesson(BaseModel):
+    student_id: int
+    day_of_week: int  # 0=пн, 1=вт, 2=ср, 3=чт, 4=пт, 5=сб, 6=вс
+    time: str
+    price: int
+
 # === HTML страницы ===
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Страница входа"""
+    return templates.TemplateResponse("login.html", {
+        "request": request
+    })
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -63,10 +117,32 @@ async def index(request: Request):
         "version": CACHE_VERSION
     })
 
+# === API авторизации ===
+
+class LoginRequest(BaseModel):
+    password: str
+
+@app.post("/api/auth/login")
+async def login(request: LoginRequest):
+    """Вход в систему"""
+    if verify_password(request.password):
+        token = create_token()
+        return {"token": token, "status": "success"}
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный пароль"
+        )
+
+@app.post("/api/auth/logout")
+async def logout(authenticated: bool = Depends(verify_token)):
+    """Выход из системы"""
+    return {"status": "success"}
+
 # === API endpoints ===
 
 @app.get("/api/students")
-async def get_students():
+async def get_students(authenticated: bool = Depends(verify_token)):
     """Получить список всех учеников"""
     students = await db.get_students()
     schedule = await db.get_schedule()
@@ -89,7 +165,7 @@ async def get_students():
     return {"students": result}
 
 @app.get("/api/students/{user_id}")
-async def get_student(user_id: int):
+async def get_student(user_id: int, authenticated: bool = Depends(verify_token)):
     """Получить данные конкретного ученика"""
     student = await db.get_student(user_id)
     if not student:
@@ -103,7 +179,7 @@ async def get_student(user_id: int):
     }
 
 @app.post("/api/students/{user_id}/schedule")
-async def update_student_schedule(user_id: int, schedule_update: ScheduleUpdate):
+async def update_student_schedule(user_id: int, schedule_update: ScheduleUpdate, authenticated: bool = Depends(verify_token)):
     """Обновить расписание ученика"""
     student = await db.get_student(user_id)
     if not student:
@@ -115,7 +191,7 @@ async def update_student_schedule(user_id: int, schedule_update: ScheduleUpdate)
     return {"status": "success", "message": "Schedule updated"}
 
 @app.post("/api/students/{user_id}/schedule/add")
-async def add_lesson(user_id: int, lesson: Lesson):
+async def add_lesson(user_id: int, lesson: Lesson, authenticated: bool = Depends(verify_token)):
     """Добавить урок в расписание"""
     student = await db.get_student(user_id)
     if not student:
@@ -126,13 +202,13 @@ async def add_lesson(user_id: int, lesson: Lesson):
     return {"status": "success", "message": "Lesson added"}
 
 @app.delete("/api/students/{user_id}/schedule")
-async def delete_lesson(user_id: int, day: str, time: str):
+async def delete_lesson(user_id: int, day: str, time: str, authenticated: bool = Depends(verify_token)):
     """Удалить урок из расписания"""
     await db.remove_lesson_from_schedule(user_id, day, time)
     return {"status": "success", "message": "Lesson deleted"}
 
 @app.get("/api/schedule/week")
-async def get_week_schedule():
+async def get_week_schedule(authenticated: bool = Depends(verify_token)):
     """Получить расписание на всю неделю"""
     schedule = await db.get_schedule()
     students = await db.get_students()
@@ -160,7 +236,7 @@ async def get_week_schedule():
     return {"schedule": week_data}
 
 @app.get("/api/schedule/today")
-async def get_today_schedule():
+async def get_today_schedule(authenticated: bool = Depends(verify_token)):
     """Получить расписание на сегодня"""
     settings = await db.get_settings()
     admin_tz_offset = settings['admin_timezone']
@@ -196,13 +272,13 @@ async def get_today_schedule():
     }
 
 @app.get("/api/settings")
-async def get_settings():
+async def get_settings(authenticated: bool = Depends(verify_token)):
     """Получить настройки"""
     settings = await db.get_settings()
     return {"settings": settings}
 
 @app.put("/api/settings")
-async def update_settings(settings: Settings):
+async def update_settings(settings: Settings, authenticated: bool = Depends(verify_token)):
     """Обновить настройки"""
     await db.save_settings({
         "admin_timezone": settings.admin_timezone,
@@ -215,9 +291,18 @@ async def update_settings(settings: Settings):
     return {"status": "success", "message": "Settings updated"}
 
 @app.delete("/api/students/{user_id}")
-async def delete_student(user_id: int):
-    """Удалить ученика и все его уроки"""
-    # Удаляем расписание ученика
+async def delete_student(user_id: int, authenticated: bool = Depends(verify_token)):
+    """Удалить ученика, все его уроки и шаблоны"""
+    import lessons as lessons_db
+    import recurring_schedule as recurring_db
+    
+    # Удаляем все уроки ученика
+    deleted_lessons = await lessons_db.delete_student_lessons(user_id)
+    
+    # Удаляем все шаблоны ученика
+    deleted_templates = await recurring_db.delete_student_templates(user_id)
+    
+    # Удаляем старое расписание (если есть)
     await db.set_student_schedule(user_id, [])
     
     # Удаляем самого ученика
@@ -226,10 +311,13 @@ async def delete_student(user_id: int):
         del students[str(user_id)]
         await db.save_students(students)
     
-    return {"status": "success", "message": "Student deleted"}
+    return {
+        "status": "success", 
+        "message": f"Student deleted. Removed {deleted_lessons} lessons and {deleted_templates} templates"
+    }
 
 @app.put("/api/students/{user_id}/price")
-async def update_student_price(user_id: int, price: int):
+async def update_student_price(user_id: int, price: int, authenticated: bool = Depends(verify_token)):
     """Обновить цену урока для ученика"""
     await db.update_student_price(user_id, price)
     return {"status": "success", "message": "Price updated"}
@@ -238,71 +326,188 @@ class StudentPrice(BaseModel):
     price: int
 
 @app.post("/api/students/{user_id}/price")
-async def update_student_price_post(user_id: int, data: StudentPrice):
+async def update_student_price_post(user_id: int, data: StudentPrice, authenticated: bool = Depends(verify_token)):
     """Обновить цену урока для ученика (POST)"""
     await db.update_student_price(user_id, data.price)
     return {"status": "success", "message": "Price updated"}
 
 @app.get("/api/dashboard/stats")
-async def get_dashboard_stats():
+async def get_dashboard_stats(authenticated: bool = Depends(verify_token)):
     """Получить статистику для личного кабинета"""
-    from datetime import datetime, timedelta
-    import calendar
+    now = datetime.now()
+    year = now.year
+    month = now.month
     
-    schedule = await db.get_schedule()
+    # Статистика за текущий месяц
+    month_stats = await lessons_db.get_stats_for_month(year, month)
+    
+    # Статистика за неделю (последние 7 дней)
+    today = now.date()
+    week_ago = today - timedelta(days=7)
+    week_lessons = await lessons_db.get_lessons_by_date_range(
+        week_ago.strftime('%Y-%m-%d'),
+        today.strftime('%Y-%m-%d')
+    )
+    
+    week_completed = sum(l['price'] for l in week_lessons if l['completed'])
+    
+    # Количество учеников
     students = await db.get_students()
-    settings = await db.get_settings()
-    
-    # Подсчет уроков
-    total_lessons_week = 0
-    total_lessons_month = 0
-    lessons_by_day = {}
-    
-    for user_id, user_schedule in schedule.items():
-        for lesson in user_schedule:
-            total_lessons_week += 1
-            day = lesson['day']
-            if day not in lessons_by_day:
-                lessons_by_day[day] = 0
-            lessons_by_day[day] += 1
-    
-    # Уроков в месяц (примерно 4 недели)
-    total_lessons_month = total_lessons_week * 4
-    
-    # Средние уроки в день
-    avg_lessons_per_day = total_lessons_week / 7 if total_lessons_week > 0 else 0
-    
-    # Подсчет дохода
-    income_week = 0
-    income_month = 0
-    
-    for user_id, user_schedule in schedule.items():
-        student = students.get(user_id)
-        if student:
-            price = student.get('lesson_price', settings.get('default_lesson_price', 1000))
-            lessons_count = len(user_schedule)
-            income_week += price * lessons_count
-    
-    income_month = income_week * 4
     
     return {
-        "lessons": {
-            "per_day_avg": round(avg_lessons_per_day, 1),
-            "per_week": total_lessons_week,
-            "per_month": total_lessons_month
-        },
-        "income": {
-            "per_week": income_week,
-            "per_month": income_month
-        },
-        "students_count": len(students),
-        "lessons_by_day": lessons_by_day
+        "lessons_this_month": month_stats['total_lessons'],
+        "completed_lessons": month_stats['completed_lessons'],
+        "pending_lessons": month_stats['pending_lessons'],
+        "completed_income": month_stats['completed_income'],
+        "expected_income": month_stats['expected_income'],
+        "week_income": week_completed,
+        "students_count": len(students)
     }
 
 if __name__ == "__main__":
     import uvicorn
     db.ensure_data_dir()
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+# === API для уроков (новая система) ===
+
+@app.post("/api/lessons")
+async def create_lesson(lesson: LessonCreate, authenticated: bool = Depends(verify_token)):
+    """Создать урок"""
+    try:
+        lesson_id = await lessons_db.add_lesson(
+            lesson.student_id,
+            lesson.date,
+            lesson.time,
+            lesson.price
+        )
+        return {"status": "success", "lesson_id": lesson_id}
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+@app.get("/api/lessons/month/{year}/{month}")
+async def get_lessons_month(year: int, month: int, authenticated: bool = Depends(verify_token)):
+    """Получить уроки за месяц"""
+    lessons = await lessons_db.get_lessons_by_month(year, month)
+    
+    # Добавляем информацию об учениках
+    students = await db.get_students()
+    
+    for lesson in lessons:
+        student = students.get(str(lesson['student_id']))
+        if student:
+            lesson['student_name'] = student['name']
+            lesson['student_username'] = student.get('username', '')
+    
+    return {"lessons": lessons}
+
+@app.post("/api/lessons/{lesson_id:path}/complete")
+async def complete_lesson(lesson_id: str = Path(...), authenticated: bool = Depends(verify_token)):
+    """Отметить урок как выполненный"""
+    success = await lessons_db.mark_lesson_completed(lesson_id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    
+    return {"status": "success"}
+
+@app.post("/api/lessons/{lesson_id:path}/uncomplete")
+async def uncomplete_lesson(lesson_id: str = Path(...), authenticated: bool = Depends(verify_token)):
+    """Отменить выполнение урока"""
+    success = await lessons_db.mark_lesson_uncompleted(lesson_id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    
+    return {"status": "success"}
+
+@app.get("/api/lessons/available-slots/{date}")
+async def get_available_slots(date: str, authenticated: bool = Depends(verify_token)):
+    """Получить свободные слоты на дату"""
+    slots = await lessons_db.get_available_slots(date)
+    return {"slots": slots}
+
+@app.get("/api/lessons/check-time/{date}/{time}")
+async def check_time_availability(date: str, time: str, authenticated: bool = Depends(verify_token)):
+    """Проверить доступность конкретного времени"""
+    result = await lessons_db.check_time_available(date, time)
+    return result
+
+@app.post("/api/lessons/{lesson_id:path}/move")
+async def move_lesson(lesson_id: str = Path(...), move_data: LessonMove = None, authenticated: bool = Depends(verify_token)):
+    """Перенести урок"""
+    new_id = await lessons_db.move_lesson(lesson_id, move_data.new_date, move_data.new_time)
+    
+    if not new_id:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    
+    return {"status": "success", "new_lesson_id": new_id}
+
+@app.delete("/api/lessons/{lesson_id:path}")
+async def delete_lesson(lesson_id: str = Path(...), authenticated: bool = Depends(verify_token)):
+    """Удалить урок"""
+    success = await lessons_db.delete_lesson(lesson_id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    
+    return {"status": "success"}
+
+# === API для шаблонов расписания ===
+
+@app.get("/api/recurring")
+async def get_recurring(authenticated: bool = Depends(verify_token)):
+    """Получить все шаблоны расписания"""
+    templates = await recurring_db.get_all_recurring()
+    
+    # Добавляем информацию об учениках
+    students = await db.get_students()
+    
+    for template in templates:
+        student = students.get(str(template['student_id']))
+        if student:
+            template['student_name'] = student['name']
+    
+    return {"templates": templates}
+
+@app.post("/api/recurring")
+async def create_recurring(recurring: RecurringLesson, authenticated: bool = Depends(verify_token)):
+    """Создать шаблон расписания"""
+    template_id = await recurring_db.add_recurring_lesson(
+        recurring.student_id,
+        recurring.day_of_week,
+        recurring.time,
+        recurring.price
+    )
+    
+    # Автоматически генерируем уроки
+    await recurring_db.auto_generate_lessons()
+    
+    return {"status": "success", "template_id": template_id}
+
+@app.delete("/api/recurring/{template_id}")
+async def delete_recurring(template_id: str, delete_future: bool = False, authenticated: bool = Depends(verify_token)):
+    """Удалить шаблон расписания и опционально будущие уроки"""
+    success = await recurring_db.delete_recurring(template_id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    deleted_lessons = 0
+    if delete_future:
+        # Удаляем все будущие незавершенные уроки из этого шаблона
+        deleted_lessons = await recurring_db.delete_template_future_lessons(template_id)
+    
+    return {
+        "status": "success",
+        "deleted_lessons": deleted_lessons
+    }
+
+@app.post("/api/recurring/generate")
+async def generate_lessons(authenticated: bool = Depends(verify_token)):
+    """Сгенерировать уроки из шаблонов"""
+    count = await recurring_db.auto_generate_lessons()
+    return {"status": "success", "created": count}
 
 # === WebSocket для уведомлений ===
 
@@ -329,7 +534,7 @@ async def broadcast_notification(notification: dict):
 # === API для уведомлений ===
 
 @app.get("/api/notifications")
-async def get_notifications():
+async def get_notifications(authenticated: bool = Depends(verify_token)):
     """Получить все уведомления"""
     notifications = await db.get_notifications()
     
@@ -343,19 +548,19 @@ async def get_notifications():
     return {"notifications": sorted_notifications}
 
 @app.post("/api/notifications/{notification_id}/read")
-async def mark_notification_read(notification_id: str):
+async def mark_notification_read(notification_id: str, authenticated: bool = Depends(verify_token)):
     """Отметить уведомление как прочитанное"""
     await db.mark_notification_read(notification_id)
     return {"status": "success"}
 
 @app.delete("/api/notifications/{notification_id}")
-async def delete_notification(notification_id: str):
+async def delete_notification(notification_id: str, authenticated: bool = Depends(verify_token)):
     """Удалить уведомление"""
     await db.delete_notification(notification_id)
     return {"status": "success"}
 
 @app.post("/api/notifications/clear-all")
-async def clear_all_notifications():
+async def clear_all_notifications(authenticated: bool = Depends(verify_token)):
     """Очистить все уведомления"""
     await db.save_notifications({})
     return {"status": "success"}

@@ -9,10 +9,10 @@
     --primary: #1e293b;
     --primary-dark: #0f172a;
     --secondary: #475569;
-    --success: #059669;
+    --success: #16a34a;
     --danger: #dc2626;
     --warning: #d97706;
-    --bg-main: #f8fafc;
+    --bg-main: #f1f5f9;
     --bg-card: #ffffff;
     --text-primary: #0f172a;
     --text-secondary: #64748b;
@@ -20,7 +20,7 @@
     --border-dark: #cbd5e1;
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
 
 body {
@@ -54,48 +54,42 @@ body {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    font-size: 1.125rem;
+    font-size: 1rem;
     font-weight: 600;
     color: white;
     letter-spacing: 0.025em;
-}
-
-.brand-icon {
-    font-size: 1.25rem;
+    text-transform: uppercase;
 }
 
 .nav-links {
     display: flex;
-    gap: 0.25rem;
+    gap: 0.5rem;
 }
 
 .nav-link {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    color: rgba(255, 255, 255, 0.8);
+    padding: 0.625rem 1.25rem;
+    color: rgba(255, 255, 255, 0.85);
     text-decoration: none;
-    border-radius: 0.25rem;
+    border-radius: 0;
     font-weight: 500;
     font-size: 0.875rem;
     transition: all 0.2s;
-    border-bottom: 2px solid transparent;
+    border-bottom: 3px solid transparent;
+    position: relative;
 }
 
 .nav-link:hover {
     color: white;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .nav-link.active {
     color: white;
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.12);
     border-bottom-color: white;
-}
-
-.link-icon {
-    font-size: 1rem;
 }
 
 /* === Контейнер страниц === */
@@ -130,8 +124,8 @@ body {
 }
 
 .page-header h1 {
-    font-size: 1.75rem;
-    font-weight: 600;
+    font-size: 1.875rem;
+    font-weight: 700;
     color: var(--text-primary);
     margin-bottom: 0.25rem;
     letter-spacing: -0.025em;
@@ -139,7 +133,327 @@ body {
 
 .page-subtitle {
     color: var(--text-secondary);
+    font-size: 0.9375rem;
+}
+
+.page-hint {
+    color: var(--text-secondary);
     font-size: 0.875rem;
+    margin-top: 0.5rem;
+    font-style: italic;
+    opacity: 0.8;
+}
+
+.schedule-controls {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.current-month {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 200px;
+    text-align: center;
+}
+
+/* === Календарь === */
+.calendar-wrapper {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+}
+
+.calendar-day-header {
+    background: var(--primary);
+    color: white;
+    padding: 0.75rem;
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.calendar-day {
+    background: var(--bg-card);
+    min-height: 120px;
+    padding: 0.75rem;
+    padding-bottom: 2.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.calendar-day.empty {
+    background: #fafafa;
+    cursor: default;
+}
+
+.calendar-day:not(.empty):hover {
+    background: #fafafa;
+}
+
+.calendar-day.weekend {
+    background: #fef9f5;
+}
+
+.calendar-day.today {
+    background: #eff6ff;
+    border: 2px solid var(--primary);
+}
+
+.calendar-day.past {
+    background: #f8fafc;
+    opacity: 0.6;
+    cursor: default;
+}
+
+.calendar-day.past .add-lesson-hint {
+    display: none;
+}
+
+.calendar-day.past .lesson-item {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.day-number {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.day-name-mobile {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-left: 0.25rem;
+    display: none;
+}
+
+.calendar-day.today .day-number {
+    color: var(--primary);
+}
+
+.day-lessons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.lesson-item {
+    background: var(--primary);
+    color: white;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    border-left: 3px solid var(--primary-dark);
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+}
+
+.lesson-item:hover {
+    background: var(--primary-dark);
+    transform: translateX(2px);
+}
+
+.lesson-item.moved {
+    background: #f59e0b;
+    border-left-color: #d97706;
+}
+
+.lesson-item.moved:hover {
+    background: #d97706;
+}
+
+.lesson-item.completed {
+    background: var(--success);
+    border-left-color: #15803d;
+    opacity: 0.8;
+}
+
+.lesson-item.completed:hover {
+    background: #15803d;
+}
+
+.lesson-moved-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 0.875rem;
+    opacity: 0.8;
+}
+
+.lesson-time {
+    font-weight: 600;
+    margin-right: 0.25rem;
+}
+
+.lesson-student {
+    font-weight: 400;
+}
+
+.add-lesson-hint {
+    position: absolute;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    width: 24px;
+    height: 24px;
+    background: var(--success);
+    color: white;
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.calendar-day:not(.past):hover .add-lesson-hint {
+    opacity: 1;
+}
+
+.lesson-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+/* === Страница "Сегодня" === */
+.today-table-wrapper {
+    background: var(--bg-card);
+    border-radius: 0;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    max-width: 1000px;
+}
+
+/* === Шаблоны в виде сетки === */
+.templates-grid-wrapper {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+}
+
+.templates-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+}
+
+.templates-grid-7 {
+    grid-template-columns: repeat(7, 1fr);
+}
+
+.template-day {
+    background: var(--bg-card);
+    min-height: 150px;
+    padding: 0.75rem;
+    padding-bottom: 2.5rem;
+    position: relative;
+}
+
+.template-day-header {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--border);
+}
+
+.template-lessons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.template-item {
+    background: var(--primary);
+    color: white;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+}
+
+.template-item:hover {
+    background: var(--primary-dark);
+}
+
+.template-item:hover .template-delete {
+    opacity: 1;
+}
+
+.template-time {
+    font-weight: 600;
+    margin-right: 0.25rem;
+}
+
+.template-student {
+    font-weight: 400;
+}
+
+.template-delete {
+    position: absolute;
+    right: 0.25rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--danger);
+    color: white;
+    border: none;
+    width: 18px;
+    height: 18px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.template-add-btn {
+    position: absolute;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    background: var(--success);
+    color: white;
+    border: none;
+    width: 24px;
+    height: 24px;
+    font-size: 1.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.template-day:hover .template-add-btn {
+    opacity: 1;
 }
 
 /* === Таблица расписания === */
@@ -360,11 +674,12 @@ body {
 .action-btn {
     width: 32px;
     height: 32px;
-    border-radius: 0.25rem;
+    border-radius: 0;
     border: 1px solid var(--border);
     background: white;
     color: var(--text-secondary);
-    font-size: 1rem;
+    font-size: 1.25rem;
+    font-weight: 700;
     cursor: pointer;
     transition: all 0.15s;
     display: flex;
@@ -483,21 +798,22 @@ body {
 
 /* === Кнопки === */
 .btn {
-    padding: 0.625rem 1.25rem;
+    padding: 0.625rem 1.5rem;
     border: none;
-    border-radius: 0.25rem;
-    font-weight: 500;
+    border-radius: 0;
+    font-weight: 600;
     font-size: 0.875rem;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.2s;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
 }
 
 .btn:hover {
-    transform: translateY(-1px);
     box-shadow: var(--shadow);
 }
 
@@ -520,7 +836,7 @@ body {
 }
 
 .btn-success:hover {
-    background: #047857;
+    background: #15803d;
 }
 
 .btn-danger {
@@ -530,6 +846,37 @@ body {
 
 .btn-danger:hover {
     background: #b91c1c;
+}
+
+.btn-secondary {
+    background: var(--secondary);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #334155;
+}
+
+.btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+}
+
+.btn-icon {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    background: var(--secondary);
+    color: white;
+}
+
+.btn-icon:hover {
+    background: #334155;
+    transform: rotate(180deg);
 }
 
 .btn-block {
@@ -677,6 +1024,7 @@ body {
     .nav-links {
         width: 100%;
         justify-content: center;
+        flex-wrap: wrap;
     }
     
     .page-container {
@@ -687,7 +1035,7 @@ body {
         grid-template-columns: 1fr;
     }
     
-    .students-container {
+    .dashboard-grid {
         grid-template-columns: 1fr;
     }
     
@@ -704,9 +1052,95 @@ body {
         padding: 0.5rem;
         font-size: 0.75rem;
     }
+    
+    /* Календарь на мобильных */
+    .calendar-day-header {
+        font-size: 0.75rem;
+        padding: 0.5rem;
+    }
+    
+    .calendar-day {
+        min-height: 80px;
+        padding: 0.5rem;
+    }
+    
+    .day-number {
+        font-size: 0.875rem;
+    }
+    
+    .day-name-mobile {
+        display: inline;
+    }
+    
+    .lesson-item {
+        font-size: 0.625rem;
+        padding: 0.25rem 0.375rem;
+    }
 }
 
 /* === Dashboard === */
+.dashboard-stats {
+    max-width: 800px;
+}
+
+.stats-section {
+    margin-bottom: 3rem;
+}
+
+.stats-section-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--border-dark);
+}
+
+.stats-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.stats-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.stats-item:last-child {
+    border-bottom: none;
+}
+
+.stats-label {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.stats-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.stats-money {
+    color: var(--success);
+}
+
+.dashboard-actions {
+    display: flex;
+    justify-content: flex-start;
+    padding-top: 2rem;
+    margin-top: 2rem;
+    border-top: 2px solid var(--border);
+}
+
 .stats-table-wrapper {
     background: var(--bg-card);
     border-radius: 0.5rem;
@@ -904,10 +1338,9 @@ body {
     color: var(--text-secondary);
 }
 
-.notification-empty-icon {
-    font-size: 4rem;
-    margin-bottom: 1rem;
-    opacity: 0.3;
+.notification-empty-text {
+    font-size: 1rem;
+    font-weight: 500;
 }
 
 /* === Toast уведомления === */
@@ -992,4 +1425,167 @@ body {
 
 .empty-state-text {
     font-size: 1.125rem;
+}
+
+/* === Модальное окно переноса с календарем === */
+.modal-large {
+    max-width: 700px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.move-lesson-info {
+    margin-bottom: 1.5rem;
+}
+
+.move-info-box {
+    background: var(--bg-main);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border-left: 4px solid var(--primary);
+}
+
+.available-slots-container {
+    margin-top: 1.5rem;
+}
+
+.slots-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.slots-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+    max-height: 350px;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+
+.slot-item {
+    padding: 0.75rem;
+    border: 2px solid var(--border);
+    border-radius: 0.5rem;
+    text-align: center;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.slot-available {
+    background: #f0fdf4;
+    border-color: var(--success);
+}
+
+.slot-available:hover {
+    background: var(--success);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+}
+
+.slot-busy {
+    background: #fef2f2;
+    border-color: #fecaca;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.slot-time {
+    font-size: 1.125rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.slot-status {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.slot-available .slot-status {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.slots-loading,
+.slots-error {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary);
+    grid-column: 1 / -1;
+}
+
+.slots-error {
+    color: var(--danger);
+}
+
+@media (max-width: 768px) {
+    .slots-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .modal-large {
+        max-width: 95%;
+    }
+}
+
+
+/* === Ручной ввод времени === */
+.manual-time-container {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+}
+
+.manual-time-input-group {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.manual-time-input-group input {
+    flex: 1;
+}
+
+.manual-time-result {
+    min-height: 40px;
+}
+
+.manual-time-success {
+    background: #f0fdf4;
+    border: 1px solid var(--success);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    color: #15803d;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.manual-time-error {
+    background: #fef2f2;
+    border: 1px solid var(--danger);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    color: #991b1b;
+}
+
+.manual-time-loading {
+    background: #eff6ff;
+    border: 1px solid var(--primary);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    color: var(--primary);
+    text-align: center;
+}
+
+.manual-time-error ul {
+    list-style: disc;
 }

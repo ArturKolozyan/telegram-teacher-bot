@@ -62,16 +62,79 @@ async def start_registration(message: Message, state: FSMContext):
     """Начать регистрацию ученика"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="МСК-2 (UTC+1)", callback_data="tz_1"),
-            InlineKeyboardButton(text="МСК-1 (UTC+2)", callback_data="tz_2")
+            InlineKeyboardButton(text="UTC -12, Веллингтон", callback_data="tz_-12"),
         ],
         [
-            InlineKeyboardButton(text="МСК (UTC+3)", callback_data="tz_3"),
-            InlineKeyboardButton(text="МСК+1 (UTC+4)", callback_data="tz_4")
+            InlineKeyboardButton(text="UTC -11, Острова Мидуэй", callback_data="tz_-11"),
         ],
         [
-            InlineKeyboardButton(text="МСК+2 (UTC+5)", callback_data="tz_5"),
-            InlineKeyboardButton(text="МСК+3 (UTC+6)", callback_data="tz_6")
+            InlineKeyboardButton(text="UTC -10, Гонолулу", callback_data="tz_-10"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC -9, Анкоридж", callback_data="tz_-9"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC -8, Лос Анджелес", callback_data="tz_-8"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC -7, Денвер", callback_data="tz_-7"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC -6, Чикаго", callback_data="tz_-6"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC -5, Нью-Йорк", callback_data="tz_-5"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC -4, Санто-Доминго", callback_data="tz_-4"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC -3, Рио-Де-Жанейро", callback_data="tz_-3"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC -2, Гренландия", callback_data="tz_-2"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC -1, Азорские Острова", callback_data="tz_-1"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC +0, Лондон", callback_data="tz_0"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC +1, Кишинев, Париж", callback_data="tz_1"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC +2, Калининград, Киев", callback_data="tz_2"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC +3, Москва, Минск", callback_data="tz_3"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC +4, Самара, Баку", callback_data="tz_4"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC +5, Душанбе, Екатеринбург", callback_data="tz_5"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC +6, Бишкек, Астана", callback_data="tz_6"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC +7, Красноярск", callback_data="tz_7"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC +8, Иркутск, Пекин", callback_data="tz_8"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC +9, Якутск, Токио", callback_data="tz_9"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC +10, Владивосток", callback_data="tz_10"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC +11, Среднеколымск", callback_data="tz_11"),
+        ],
+        [
+            InlineKeyboardButton(text="UTC +12, Камчатка", callback_data="tz_12"),
         ]
     ])
     

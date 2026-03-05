@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход - Tutor System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 420px;
+            padding: 3rem 2.5rem;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding-bottom: 2rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .login-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .login-subtitle {
+            color: #64748b;
+            font-size: 0.9375rem;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #0f172a;
+            font-size: 0.875rem;
+        }
+
+        .form-input {
+            padding: 0.875rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #1e293b;
+            box-shadow: 0 0 0 3px rgba(30, 41, 59, 0.1);
+        }
+
+        .btn-login {
+            padding: 0.875rem;
+            background: #1e293b;
+            color: white;
+            border: none;
+            border-radius: 0;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .btn-login:hover {
+            background: #0f172a;
+            box-shadow: 0 4px 12px rgba(30, 41, 59, 0.3);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 0.875rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            border-left: 4px solid #dc2626;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1 class="login-title">Tutor Management System</h1>
+            <p class="login-subtitle">Панель управления репетитора</p>
+        </div>
+
+        <div id="errorMessage" class="error-message"></div>
+
+        <form id="loginForm" class="login-form">
+            <div class="form-group">
+                <label class="form-label">Пароль</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    class="form-input" 
+                    placeholder="Введите пароль"
+                    required
+                    autocomplete="current-password"
+                >
+            </div>
+
+            <button type="submit" class="btn-login">
+                Войти
+            </button>
+        </form>
+    </div>
+
+    <script>
+        const form = document.getElementById('loginForm');
+        const errorMessage = document.getElementById('errorMessage');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('auth_token', data.token);
+                    window.location.href = '/';
+                } else {
+                    showError(data.detail || 'Неверный пароль');
+                }
+            } catch (error) {
+                showError('Ошибка подключения к серверу');
+            }
+        });
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
+            
+            setTimeout(() => {
+                errorMessage.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

@@ -126,7 +126,7 @@ async def remove_lesson_from_schedule(user_id: int, day: str, time: str):
 async def get_settings() -> Dict:
     """Получить настройки"""
     default_settings = {
-        'admin_timezone': 3,  # UTC+3 МСК
+        'admin_timezone': 3,  # UTC+3 (по умолчанию МСК)
         'reminder_minutes_before': 60,
         'homework_check_minutes_before': 5,
         'admin_daily_reminder_time': '08:00',

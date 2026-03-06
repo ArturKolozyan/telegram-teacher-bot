@@ -11,6 +11,7 @@ from typing import List, Optional, Set
 import database as db
 import lessons as lessons_db
 import recurring_schedule as recurring_db
+import simple_auth
 from datetime import datetime, timedelta
 import os
 import time
@@ -36,13 +37,8 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 CACHE_VERSION = str(int(time.time()))
 
 # Авторизация
-ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
 security = HTTPBearer()
 active_tokens = set()
-
-def verify_password(password: str) -> bool:
-    """Проверка пароля"""
-    return password == ADMIN_PASSWORD
 
 def create_token() -> str:
     """Создание токена"""
@@ -99,6 +95,13 @@ class RecurringLesson(BaseModel):
 
 # === HTML страницы ===
 
+@app.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    """Страница регистрации"""
+    return templates.TemplateResponse("register.html", {
+        "request": request
+    })
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     """Страница входа"""
@@ -116,19 +119,43 @@ async def index(request: Request):
 
 # === API авторизации ===
 
-class LoginRequest(BaseModel):
+class RegisterRequest(BaseModel):
+    email: str
     password: str
+    name: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+@app.post("/api/auth/register")
+async def register(request: RegisterRequest):
+    """Регистрация репетитора"""
+    result = simple_auth.register(request.email, request.password, request.name)
+    
+    if not result['success']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result['message']
+        )
+    
+    return {"status": "success", "message": result['message']}
 
 @app.post("/api/auth/login")
 async def login(request: LoginRequest):
     """Вход в систему"""
-    if verify_password(request.password):
+    if simple_auth.authenticate(request.email, request.password):
         token = create_token()
-        return {"token": token, "status": "success"}
+        tutor_info = simple_auth.get_tutor_info()
+        return {
+            "token": token,
+            "status": "success",
+            "tutor": tutor_info
+        }
     else:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Неверный пароль"
+            detail="Неверный email или пароль"
         )
 
 @app.post("/api/auth/logout")
@@ -140,8 +167,15 @@ async def logout(authenticated: bool = Depends(verify_token)):
 
 @app.get("/api/students")
 async def get_students(authenticated: bool = Depends(verify_token)):
-    """Получить список всех учеников"""
-    students = await db.get_students()
+    """Получить список всех учеников репетитора"""
+    # Получаем tutor_id текущего репетитора
+    tutor_id = simple_auth.get_tutor_id()
+    
+    if not tutor_id:
+        raise HTTPException(status_code=500, detail="Tutor ID not found")
+    
+    # Получаем только учеников этого репетитора
+    students = await db.get_students_by_tutor(tutor_id)
     schedule = await db.get_schedule()
     settings = await db.get_settings()
     default_price = settings.get('default_lesson_price', 1000)
@@ -272,7 +306,21 @@ async def get_today_schedule(authenticated: bool = Depends(verify_token)):
 async def get_settings(authenticated: bool = Depends(verify_token)):
     """Получить настройки"""
     settings = await db.get_settings()
-    return {"settings": settings}
+    
+    # Добавляем информацию о репетиторе и его ссылку
+    tutor_info = simple_auth.get_tutor_info()
+    bot_username = os.getenv('BOT_USERNAME', 'YourBot')  # Имя бота без @
+    
+    if tutor_info and tutor_info.get('tutor_id'):
+        invite_link = f"https://t.me/{bot_username}?start={tutor_info['tutor_id']}"
+    else:
+        invite_link = None
+    
+    return {
+        "settings": settings,
+        "tutor_info": tutor_info,
+        "invite_link": invite_link
+    }
 
 @app.put("/api/settings")
 async def update_settings(settings: Settings, authenticated: bool = Depends(verify_token)):

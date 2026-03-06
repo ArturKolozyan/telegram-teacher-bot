@@ -5,6 +5,7 @@ import pytz
 from aiogram import Bot
 
 import database as db
+import simple_auth
 
 DAYS_MAP = {
     'monday': 0,
@@ -16,16 +17,25 @@ DAYS_MAP = {
     'sunday': 6
 }
 
-async def get_lessons_for_datetime(target_datetime: datetime, admin_tz_offset: int) -> List[Dict]:
+async def get_lessons_for_datetime(target_datetime: datetime, admin_tz_offset: int, tutor_id: str = None) -> List[Dict]:
     """Получить все уроки на конкретную дату и время (в часовом поясе админа)"""
     schedule = await db.get_schedule()
-    students = await db.get_students()
+    
+    # Если указан tutor_id, получаем только его учеников
+    if tutor_id:
+        students = await db.get_students_by_tutor(tutor_id)
+    else:
+        students = await db.get_students()
     
     day_name = list(DAYS_MAP.keys())[target_datetime.weekday()]
     target_time = target_datetime.strftime('%H:%M')
     
     lessons = []
     for user_id, user_schedule in schedule.items():
+        # Проверяем что ученик принадлежит этому репетитору
+        if user_id not in students:
+            continue
+            
         for lesson in user_schedule:
             if lesson['day'] == day_name and lesson['time'] == target_time:
                 student = students.get(user_id)
@@ -62,7 +72,7 @@ async def check_and_send_reminders(bot: Bot):
         # Время урока = текущее время + время напоминания
         lesson_time = current_minute + timedelta(minutes=reminder_minutes)
         
-        # Получаем уроки на это время
+        # Получаем уроки на это время (для всех репетиторов)
         lessons = await get_lessons_for_datetime(lesson_time, admin_tz_offset)
         
         for lesson in lessons:
@@ -138,8 +148,12 @@ async def check_and_send_homework_reports(bot: Bot, admin_id: int):
         # Время урока = текущее время + время отчета
         lesson_time = current_minute + timedelta(minutes=report_minutes)
         
-        # Получаем уроки на это время
-        lessons = await get_lessons_for_datetime(lesson_time, admin_tz_offset)
+        # Получаем tutor_id админа по его telegram ID
+        import simple_auth
+        tutor_id = simple_auth.get_tutor_id()
+        
+        # Получаем уроки на это время только для этого репетитора
+        lessons = await get_lessons_for_datetime(lesson_time, admin_tz_offset, tutor_id)
         
         if not lessons:
             return
@@ -195,14 +209,27 @@ async def send_admin_daily_reminder(bot: Bot, admin_id: int):
         admin_tz = pytz.timezone(f'Etc/GMT{-admin_tz_offset:+d}')
         now_admin = datetime.now(admin_tz)
         
+        # Получаем tutor_id админа
+        import simple_auth
+        tutor_id = simple_auth.get_tutor_id()
+        
         # Получаем все уроки на сегодня
         schedule = await db.get_schedule()
-        students = await db.get_students()
+        
+        # Получаем только учеников этого репетитора
+        if tutor_id:
+            students = await db.get_students_by_tutor(tutor_id)
+        else:
+            students = await db.get_students()
         
         day_name = list(DAYS_MAP.keys())[now_admin.weekday()]
         
         today_lessons = []
         for user_id, user_schedule in schedule.items():
+            # Проверяем что ученик принадлежит этому репетитору
+            if user_id not in students:
+                continue
+                
             for lesson in user_schedule:
                 if lesson['day'] == day_name:
                     student = students.get(user_id)

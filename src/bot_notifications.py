@@ -6,7 +6,7 @@ import logging
 import os
 from datetime import datetime
 from aiogram import Bot, Dispatcher, Router, F
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -17,6 +17,7 @@ import pytz
 
 import database as db
 import scheduler as sched
+import simple_auth
 
 load_dotenv()
 
@@ -38,8 +39,13 @@ class StudentRegistration(StatesGroup):
 # === КОМАНДА /start ===
 
 @router.message(Command("start"))
-async def cmd_start(message: Message, state: FSMContext):
+async def cmd_start(message: Message, command: CommandObject, state: FSMContext):
     user_id = message.from_user.id
+    
+    # Получаем tutor_id из реферальной ссылки
+    tutor_id = None
+    if command.args:
+        tutor_id = command.args  # Например: /start ABC123
     
     # Проверяем - админ или ученик
     if user_id == ADMIN_ID:
@@ -51,6 +57,17 @@ async def cmd_start(message: Message, state: FSMContext):
         if student:
             await show_student_menu(message)
         else:
+            # Если нет tutor_id - просим ввести код
+            if not tutor_id:
+                await message.answer(
+                    "👋 Добро пожаловать!\n\n"
+                    "Для регистрации вам нужна ссылка от вашего репетитора.\n\n"
+                    "Попросите репетитора отправить вам ссылку для регистрации."
+                )
+                return
+            
+            # Сохраняем tutor_id в состояние для регистрации
+            await state.update_data(tutor_id=tutor_id)
             await start_registration(message, state)
 
 # === РЕГИСТРАЦИЯ УЧЕНИКА ===
@@ -151,7 +168,19 @@ async def process_timezone(callback: CallbackQuery, state: FSMContext):
     name = callback.from_user.full_name
     username = callback.from_user.username or ""
     
-    await db.add_student(user_id, name, username, timezone_offset)
+    # Получаем tutor_id из состояния
+    data = await state.get_data()
+    tutor_id = data.get('tutor_id')
+    
+    if not tutor_id:
+        await callback.message.edit_text(
+            "❌ Ошибка регистрации: не указан репетитор.\n\n"
+            "Попросите репетитора отправить вам ссылку для регистрации."
+        )
+        await state.clear()
+        return
+    
+    await db.add_student(user_id, name, username, timezone_offset, tutor_id)
     
     # Определяем текст часового пояса
     msk_diff = timezone_offset - 3
@@ -216,11 +245,24 @@ async def show_today_schedule_admin(message: Message):
         'sunday': 'Воскресенье'
     }
     
+    # Получаем tutor_id админа
+    import simple_auth
+    tutor_id = simple_auth.get_tutor_id()
+    
     schedule = await db.get_schedule()
-    students = await db.get_students()
+    
+    # Получаем только учеников этого репетитора
+    if tutor_id:
+        students = await db.get_students_by_tutor(tutor_id)
+    else:
+        students = await db.get_students()
     
     today_lessons = []
     for user_id, user_schedule in schedule.items():
+        # Проверяем что ученик принадлежит этому репетитору
+        if user_id not in students:
+            continue
+            
         for lesson in user_schedule:
             if lesson['day'] == day_name:
                 student = students.get(user_id)

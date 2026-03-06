@@ -58,7 +58,7 @@ async def save_students(students: Dict):
     """Сохранить учеников"""
     await save_json('students.json', students, 'students')
 
-async def add_student(user_id: int, name: str, username: str, timezone_offset: int):
+async def add_student(user_id: int, name: str, username: str, timezone_offset: int, tutor_id: str):
     """Добавить нового ученика"""
     students = await get_students()
     settings = await get_settings()
@@ -67,6 +67,7 @@ async def add_student(user_id: int, name: str, username: str, timezone_offset: i
         'name': name,
         'username': username,
         'timezone_offset': timezone_offset,
+        'tutor_id': tutor_id,  # Привязка к репетитору
         'lesson_price': settings.get('default_lesson_price', 1000),
         'registered_at': datetime.now().isoformat()
     }
@@ -184,3 +185,23 @@ async def update_student_price(user_id: int, price: int):
 
 
 # === Работа с уведомлениями ===
+
+
+async def get_students_by_tutor(tutor_id: str) -> Dict:
+    """Получить учеников конкретного репетитора"""
+    all_students = await get_students()
+    
+    # Фильтруем учеников по tutor_id
+    tutor_students = {}
+    for user_id, student in all_students.items():
+        if student.get('tutor_id') == tutor_id:
+            tutor_students[user_id] = student
+    
+    return tutor_students
+
+async def get_student_tutor_id(user_id: int) -> Optional[str]:
+    """Получить ID репетитора ученика"""
+    student = await get_student(user_id)
+    if student:
+        return student.get('tutor_id')
+    return None

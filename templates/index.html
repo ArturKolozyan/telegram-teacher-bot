@@ -198,6 +198,19 @@
                 <p class="page-subtitle">Параметры уведомлений и часовые пояса</p>
             </div>
             
+            <!-- Ссылка для учеников -->
+            <div class="settings-wrapper" style="margin-bottom: 2rem;">
+                <div class="invite-link-section">
+                    <h3 style="margin-bottom: 1rem; color: #1e293b;">🔗 Ссылка для учеников</h3>
+                    <p style="color: #64748b; margin-bottom: 1rem;">Отправьте эту ссылку своим ученикам для регистрации в Telegram боте:</p>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <input type="text" id="inviteLink" class="form-input" readonly style="flex: 1; background: #f1f5f9; cursor: pointer;" onclick="this.select()">
+                        <button onclick="copyInviteLink()" class="btn btn-primary" style="white-space: nowrap;">Копировать</button>
+                    </div>
+                    <small class="form-hint" style="margin-top: 0.5rem; display: block;">Ученик перейдет по ссылке → нажмет Start → выберет часовой пояс → готово!</small>
+                </div>
+            </div>
+            
             <div class="settings-wrapper">
                 <form id="settingsForm" class="settings-form">
                     <div class="form-row">

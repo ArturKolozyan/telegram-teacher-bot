@@ -4,6 +4,7 @@
 import json
 import os
 import hashlib
+from datetime import datetime
 from typing import Optional, Dict
 
 DATA_DIR = 'data'
@@ -52,23 +53,34 @@ def is_registered() -> bool:
     auth_data = load_auth()
     return auth_data is not None
 
-def register(email: str, password: str, name: str) -> Dict:
+def register(email: str, password: str, name: str, verified: bool = False) -> Dict:
     """
     Регистрирует репетитора
-    Возвращает: {'success': bool, 'message': str, 'tutor_id': str}
+    Возвращает: {'success': bool, 'message': str, 'tutor_id': str, 'bind_token': str}
     """
     if is_registered():
         return {'success': False, 'message': 'Репетитор уже зарегистрирован'}
+    
+    if not verified:
+        return {'success': False, 'message': 'Email не подтвержден'}
     
     # Генерируем уникальный ID репетитора (короткий и читаемый)
     import secrets
     tutor_id = secrets.token_urlsafe(8)  # Например: "a7B9cD2e"
     
+    # Генерируем токен для привязки Telegram
+    bind_token = secrets.token_urlsafe(16)  # Например: "BIND_abc123xyz..."
+    
     auth_data = {
         'tutor_id': tutor_id,
         'email': email,
         'password_hash': hash_password(password),
-        'name': name
+        'name': name,
+        'verified': True,
+        'telegram_id': None,
+        'telegram_username': None,
+        'bind_token': bind_token,
+        'registered_at': datetime.now().isoformat()
     }
     
     save_auth(auth_data)
@@ -76,7 +88,8 @@ def register(email: str, password: str, name: str) -> Dict:
     return {
         'success': True,
         'message': 'Регистрация успешна',
-        'tutor_id': tutor_id
+        'tutor_id': tutor_id,
+        'bind_token': bind_token
     }
 
 def authenticate(email: str, password: str) -> bool:
@@ -112,3 +125,70 @@ def get_tutor_id() -> Optional[str]:
         return None
     
     return auth_data.get('tutor_id')
+
+
+def bind_telegram(bind_token: str, telegram_id: int, telegram_username: str = None) -> Dict:
+    """
+    Привязывает Telegram аккаунт к репетитору
+    Возвращает: {'success': bool, 'message': str, 'tutor_info': dict}
+    """
+    auth_data = load_auth()
+    
+    if not auth_data:
+        return {'success': False, 'message': 'Аккаунт не найден'}
+    
+    if auth_data.get('bind_token') != bind_token:
+        return {'success': False, 'message': 'Неверный токен привязки'}
+    
+    # Привязываем Telegram
+    auth_data['telegram_id'] = telegram_id
+    auth_data['telegram_username'] = telegram_username
+    auth_data['bind_token'] = None  # Удаляем токен после использования
+    auth_data['telegram_bound_at'] = datetime.now().isoformat()
+    
+    save_auth(auth_data)
+    
+    return {
+        'success': True,
+        'message': 'Telegram успешно привязан',
+        'tutor_info': {
+            'tutor_id': auth_data['tutor_id'],
+            'name': auth_data['name'],
+            'email': auth_data['email']
+        }
+    }
+
+def get_tutor_by_telegram_id(telegram_id: int) -> Optional[Dict]:
+    """Получает репетитора по Telegram ID"""
+    auth_data = load_auth()
+    
+    if not auth_data:
+        return None
+    
+    if auth_data.get('telegram_id') == telegram_id:
+        return {
+            'tutor_id': auth_data['tutor_id'],
+            'name': auth_data['name'],
+            'email': auth_data['email'],
+            'telegram_id': auth_data['telegram_id']
+        }
+    
+    return None
+
+def is_telegram_bound() -> bool:
+    """Проверяет привязан ли Telegram"""
+    auth_data = load_auth()
+    
+    if not auth_data:
+        return False
+    
+    return auth_data.get('telegram_id') is not None
+
+def get_bind_token() -> Optional[str]:
+    """Получает токен привязки"""
+    auth_data = load_auth()
+    
+    if not auth_data:
+        return None
+    
+    return auth_data.get('bind_token')

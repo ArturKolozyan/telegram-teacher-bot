@@ -83,6 +83,17 @@ async def get_lessons_by_date_range(start_date: str, end_date: str) -> List[Dict
     
     return sorted(result, key=lambda x: (x['date'], x['time']))
 
+async def get_lessons_by_date(date: str) -> List[Dict]:
+    """Получить уроки на конкретную дату"""
+    lessons = await load_lessons()
+    
+    result = []
+    for lesson in lessons.values():
+        if lesson['date'] == date:
+            result.append(lesson)
+    
+    return sorted(result, key=lambda x: x['time'])
+
 async def get_lessons_by_month(year: int, month: int) -> List[Dict]:
     """Получить уроки за месяц"""
     from calendar import monthrange

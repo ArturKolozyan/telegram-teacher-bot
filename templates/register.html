@@ -51,7 +51,36 @@
             font-size: 0.9375rem;
         }
 
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .step {
+            width: 2.5rem;
+            height: 0.25rem;
+            background: #e2e8f0;
+            border-radius: 0.125rem;
+            transition: background 0.3s;
+        }
+
+        .step.active {
+            background: #1e293b;
+        }
+
         .register-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .form-step {
+            display: none;
+        }
+
+        .form-step.active {
             display: flex;
             flex-direction: column;
             gap: 1.25rem;
@@ -87,59 +116,94 @@
         .form-hint {
             font-size: 0.75rem;
             color: #64748b;
-            margin-top: -0.25rem;
         }
 
-        .btn-register {
+        .code-input-group {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+        }
+
+        .code-digit {
+            width: 3.5rem;
+            height: 3.5rem;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .code-digit:focus {
+            outline: none;
+            border-color: #1e293b;
+            box-shadow: 0 0 0 3px rgba(30, 41, 59, 0.1);
+        }
+
+        .btn {
             padding: 0.875rem;
-            background: #1e293b;
-            color: white;
             border: none;
-            border-radius: 0;
+            border-radius: 0.75rem;
             font-weight: 700;
             font-size: 1rem;
             cursor: pointer;
             transition: all 0.2s;
-            margin-top: 0.5rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
 
-        .btn-register:hover {
+        .btn-primary {
+            background: #1e293b;
+            color: white;
+        }
+
+        .btn-primary:hover {
             background: #0f172a;
             box-shadow: 0 4px 12px rgba(30, 41, 59, 0.3);
         }
 
-        .btn-register:disabled {
+        .btn-primary:disabled {
             background: #94a3b8;
             cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #1e293b;
+            border: 2px solid #e2e8f0;
+        }
+
+        .btn-secondary:hover {
+            background: #f8fafc;
+        }
+
+        .error-message, .success-message, .info-message {
+            padding: 0.875rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            display: none;
         }
 
         .error-message {
             background: #fee2e2;
             color: #991b1b;
-            padding: 0.875rem 1rem;
-            border-radius: 0.5rem;
-            font-size: 0.875rem;
             border-left: 4px solid #dc2626;
-            display: none;
-        }
-
-        .error-message.show {
-            display: block;
         }
 
         .success-message {
             background: #d1fae5;
             color: #065f46;
-            padding: 0.875rem 1rem;
-            border-radius: 0.5rem;
-            font-size: 0.875rem;
             border-left: 4px solid #10b981;
-            display: none;
         }
 
-        .success-message.show {
+        .info-message {
+            background: #dbeafe;
+            color: #1e40af;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .error-message.show, .success-message.show, .info-message.show {
             display: block;
         }
 
@@ -156,42 +220,40 @@
             color: #1e293b;
             font-weight: 600;
             text-decoration: none;
-            transition: color 0.2s;
         }
 
         .login-link a:hover {
-            color: #0f172a;
             text-decoration: underline;
         }
 
-        .password-strength {
-            height: 4px;
-            background: #e2e8f0;
-            border-radius: 2px;
+        .resend-code {
+            text-align: center;
+            margin-top: 1rem;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        .resend-link {
+            color: #1e293b;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .resend-link:hover {
+            text-decoration: underline;
+        }
+
+        .resend-link.disabled {
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .timer {
+            color: #64748b;
+            font-size: 0.875rem;
+            text-align: center;
             margin-top: 0.5rem;
-            overflow: hidden;
-        }
-
-        .password-strength-bar {
-            height: 100%;
-            width: 0;
-            transition: all 0.3s;
-            background: #94a3b8;
-        }
-
-        .password-strength-bar.weak {
-            width: 33%;
-            background: #ef4444;
-        }
-
-        .password-strength-bar.medium {
-            width: 66%;
-            background: #f59e0b;
-        }
-
-        .password-strength-bar.strong {
-            width: 100%;
-            background: #10b981;
         }
     </style>
 </head>
@@ -199,69 +261,144 @@
     <div class="register-container">
         <div class="register-header">
             <h1 class="register-title">Регистрация</h1>
-            <p class="register-subtitle">Создайте аккаунт репетитора</p>
+            <p class="register-subtitle" id="stepSubtitle">Шаг 1: Введите данные</p>
+        </div>
+
+        <div class="step-indicator">
+            <div class="step active" id="stepBar1"></div>
+            <div class="step" id="stepBar2"></div>
+            <div class="step" id="stepBar3"></div>
+            <div class="step" id="stepBar4"></div>
         </div>
 
         <div id="errorMessage" class="error-message"></div>
         <div id="successMessage" class="success-message"></div>
+        <div id="infoMessage" class="info-message"></div>
 
         <form id="registerForm" class="register-form">
-            <div class="form-group">
-                <label class="form-label">Имя</label>
-                <input 
-                    type="text" 
-                    id="name" 
-                    class="form-input" 
-                    placeholder="Введите ваше имя"
-                    required
-                    autocomplete="name"
-                >
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Email</label>
-                <input 
-                    type="email" 
-                    id="email" 
-                    class="form-input" 
-                    placeholder="example@mail.com"
-                    required
-                    autocomplete="email"
-                >
-                <span class="form-hint">Используется для входа в систему</span>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Пароль</label>
-                <input 
-                    type="password" 
-                    id="password" 
-                    class="form-input" 
-                    placeholder="Минимум 6 символов"
-                    required
-                    autocomplete="new-password"
-                    minlength="6"
-                >
-                <div class="password-strength">
-                    <div id="passwordStrengthBar" class="password-strength-bar"></div>
+            <!-- Шаг 1: Ввод данных -->
+            <div class="form-step active" id="step1">
+                <div class="form-group">
+                    <label class="form-label">Имя</label>
+                    <input 
+                        type="text" 
+                        id="name" 
+                        class="form-input" 
+                        placeholder="Иван"
+                        required
+                    >
                 </div>
+
+                <div class="form-group">
+                    <label class="form-label">Фамилия</label>
+                    <input 
+                        type="text" 
+                        id="surname" 
+                        class="form-input" 
+                        placeholder="Иванов"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        class="form-input" 
+                        placeholder="example@mail.com"
+                        required
+                    >
+                    <span class="form-hint">На этот email придет код подтверждения</span>
+                </div>
+
+                <button type="button" class="btn btn-primary" id="sendCodeBtn">
+                    Получить код
+                </button>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">Подтверждение пароля</label>
-                <input 
-                    type="password" 
-                    id="confirmPassword" 
-                    class="form-input" 
-                    placeholder="Повторите пароль"
-                    required
-                    autocomplete="new-password"
-                >
+            <!-- Шаг 2: Ввод кода -->
+            <div class="form-step" id="step2">
+                <div class="form-group">
+                    <label class="form-label" style="text-align: center;">Введите код из email</label>
+                    <div class="code-input-group">
+                        <input type="text" maxlength="1" class="code-digit" id="code1" autocomplete="off">
+                        <input type="text" maxlength="1" class="code-digit" id="code2" autocomplete="off">
+                        <input type="text" maxlength="1" class="code-digit" id="code3" autocomplete="off">
+                        <input type="text" maxlength="1" class="code-digit" id="code4" autocomplete="off">
+                    </div>
+                    <span class="form-hint" style="text-align: center;">Код отправлен на <span id="emailDisplay"></span></span>
+                </div>
+
+                <div class="resend-code">
+                    <span class="resend-link" id="resendLink">Отправить код повторно</span>
+                    <div class="timer" id="timer"></div>
+                </div>
+
+                <button type="button" class="btn btn-primary" id="verifyCodeBtn">
+                    Продолжить
+                </button>
+                <button type="button" class="btn btn-secondary" id="backToStep1">
+                    Назад
+                </button>
             </div>
 
-            <button type="submit" class="btn-register" id="submitBtn">
-                Зарегистрироваться
-            </button>
+            <!-- Шаг 3: Создание пароля -->
+            <div class="form-step" id="step3">
+                <div class="form-group">
+                    <label class="form-label">Создайте пароль</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        class="form-input" 
+                        placeholder="Минимум 6 символов"
+                        required
+                        minlength="6"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Подтвердите пароль</label>
+                    <input 
+                        type="password" 
+                        id="confirmPassword" 
+                        class="form-input" 
+                        placeholder="Повторите пароль"
+                        required
+                    >
+                </div>
+
+                <button type="button" class="btn btn-primary" id="continueToStep4">
+                    Продолжить
+                </button>
+                <button type="button" class="btn btn-secondary" id="backToStep2">
+                    Назад
+                </button>
+            </div>
+
+            <!-- Шаг 4: Привязка Telegram -->
+            <div class="form-step" id="step4">
+                <div class="form-group">
+                    <label class="form-label" style="text-align: center;">Привяжите Telegram</label>
+                    <p style="text-align: center; color: #64748b; margin-bottom: 1.5rem;">
+                        Для работы с системой необходимо привязать ваш Telegram аккаунт
+                    </p>
+                    
+                    <div style="text-align: center; margin: 2rem 0;">
+                        <a id="bindTelegramLinkReg" href="#" target="_blank" class="btn btn-primary" style="display: inline-block; text-decoration: none;">
+                            Открыть Telegram бота
+                        </a>
+                    </div>
+                    
+                    <div id="bindingStatus" style="text-align: center; margin-top: 1.5rem; color: #64748b;">
+                        Ожидание привязки...
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-secondary" id="backToStep3">
+                    Назад
+                </button>
+            </div>
         </form>
 
         <div class="login-link">
@@ -270,44 +407,150 @@
     </div>
 
     <script>
-        const form = document.getElementById('registerForm');
+        let currentStep = 1;
+        let userData = {};
+        let resendTimer = null;
+        let resendSeconds = 0;
+        let bindingCheckInterval = null;
+
+        // Элементы
+        const steps = {
+            1: document.getElementById('step1'),
+            2: document.getElementById('step2'),
+            3: document.getElementById('step3'),
+            4: document.getElementById('step4')
+        };
+        const stepBars = {
+            1: document.getElementById('stepBar1'),
+            2: document.getElementById('stepBar2'),
+            3: document.getElementById('stepBar3'),
+            4: document.getElementById('stepBar4')
+        };
+        const stepSubtitle = document.getElementById('stepSubtitle');
         const errorMessage = document.getElementById('errorMessage');
         const successMessage = document.getElementById('successMessage');
-        const submitBtn = document.getElementById('submitBtn');
-        const passwordInput = document.getElementById('password');
-        const strengthBar = document.getElementById('passwordStrengthBar');
+        const infoMessage = document.getElementById('infoMessage');
 
-        // Проверка силы пароля
-        passwordInput.addEventListener('input', () => {
-            const password = passwordInput.value;
-            let strength = 0;
+        // Кнопки
+        const sendCodeBtn = document.getElementById('sendCodeBtn');
+        const verifyCodeBtn = document.getElementById('verifyCodeBtn');
+        const continueToStep4 = document.getElementById('continueToStep4');
+        const backToStep1 = document.getElementById('backToStep1');
+        const backToStep2 = document.getElementById('backToStep2');
+        const backToStep3 = document.getElementById('backToStep3');
+        const resendLink = document.getElementById('resendLink');
 
-            if (password.length >= 6) strength++;
-            if (password.length >= 10) strength++;
-            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
-            if (/\d/.test(password)) strength++;
-            if (/[^a-zA-Z0-9]/.test(password)) strength++;
+        // Поля кода
+        const codeInputs = [
+            document.getElementById('code1'),
+            document.getElementById('code2'),
+            document.getElementById('code3'),
+            document.getElementById('code4')
+        ];
 
-            strengthBar.className = 'password-strength-bar';
-            
-            if (strength <= 2) {
-                strengthBar.classList.add('weak');
-            } else if (strength <= 4) {
-                strengthBar.classList.add('medium');
-            } else {
-                strengthBar.classList.add('strong');
+        // Автофокус и переход между полями кода
+        codeInputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                if (e.target.value.length === 1 && index < 3) {
+                    codeInputs[index + 1].focus();
+                }
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                    codeInputs[index - 1].focus();
+                }
+            });
+        });
+
+        // Шаг 1: Отправка кода
+        sendCodeBtn.addEventListener('click', async () => {
+            const name = document.getElementById('name').value.trim();
+            const surname = document.getElementById('surname').value.trim();
+            const email = document.getElementById('email').value.trim();
+
+            if (!name || !surname || !email) {
+                showError('Заполните все поля');
+                return;
+            }
+
+            sendCodeBtn.disabled = true;
+            sendCodeBtn.textContent = 'Отправка...';
+
+            try {
+                const response = await fetch('/api/auth/register/send-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: `${name} ${surname}`, email })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    userData = { name: `${name} ${surname}`, email };
+                    document.getElementById('emailDisplay').textContent = email;
+                    goToStep(2);
+                    showInfo('Код отправлен на ваш email');
+                    startResendTimer(60);
+                } else {
+                    showError(data.detail || 'Ошибка отправки кода');
+                }
+            } catch (error) {
+                showError('Ошибка подключения к серверу');
+            } finally {
+                sendCodeBtn.disabled = false;
+                sendCodeBtn.textContent = 'Получить код';
             }
         });
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const name = document.getElementById('name').value.trim();
-            const email = document.getElementById('email').value.trim();
+        // Шаг 2: Проверка кода
+        verifyCodeBtn.addEventListener('click', async () => {
+            const code = codeInputs.map(input => input.value).join('');
+
+            if (code.length !== 4) {
+                showError('Введите 4-значный код');
+                return;
+            }
+
+            // Проверяем код на сервере
+            verifyCodeBtn.disabled = true;
+            verifyCodeBtn.textContent = 'Проверка...';
+
+            try {
+                const response = await fetch('/api/auth/verify-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: userData.email, 
+                        code: code 
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    userData.code = code;
+                    goToStep(3);
+                    showInfo('Код подтвержден! Создайте пароль');
+                } else {
+                    showError(data.detail || 'Неверный код');
+                    // Очищаем поля кода
+                    codeInputs.forEach(input => input.value = '');
+                    codeInputs[0].focus();
+                }
+            } catch (error) {
+                showError('Ошибка подключения к серверу');
+            } finally {
+                verifyCodeBtn.disabled = false;
+                verifyCodeBtn.textContent = 'Продолжить';
+            }
+        });
+
+        // Шаг 3: Завершение регистрации
+        continueToStep4.addEventListener('click', async () => {
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
 
-            // Валидация
             if (password !== confirmPassword) {
                 showError('Пароли не совпадают');
                 return;
@@ -318,67 +561,208 @@
                 return;
             }
 
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Регистрация...';
-            
+            continueToStep4.disabled = true;
+            continueToStep4.textContent = 'Регистрация...';
+
             try {
-                const response = await fetch('/api/auth/register', {
+                const response = await fetch('/api/auth/register/verify', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ name, email, password })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: userData.email,
+                        code: userData.code,
+                        password: password,
+                        name: userData.name
+                    })
                 });
 
                 const data = await response.json();
 
                 if (response.ok) {
-                    showSuccess('Регистрация успешна! Перенаправление...');
+                    userData.token = data.token;
+                    userData.bind_token = data.bind_token;
                     
-                    // Автоматический вход
-                    setTimeout(async () => {
-                        const loginResponse = await fetch('/api/auth/login', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ email, password })
-                        });
-
-                        const loginData = await loginResponse.json();
-
-                        if (loginResponse.ok) {
-                            localStorage.setItem('auth_token', loginData.token);
-                            window.location.href = '/';
-                        }
-                    }, 1500);
+                    // Переходим к шагу 4 - привязка Telegram
+                    goToStep(4);
+                    showInfo('Теперь привяжите Telegram для завершения регистрации');
+                    
+                    // Получаем имя бота и устанавливаем ссылку
+                    try {
+                        const botResponse = await fetch('/api/bot-info');
+                        const botData = await botResponse.json();
+                        const botUsername = botData.bot_username || 'EnglishArmina_bot';
+                        const bindUrl = `https://t.me/${botUsername}?start=BIND_${data.bind_token}`;
+                        document.getElementById('bindTelegramLinkReg').href = bindUrl;
+                    } catch (error) {
+                        // Fallback если не удалось получить имя бота
+                        const bindUrl = `https://t.me/EnglishArmina_bot?start=BIND_${data.bind_token}`;
+                        document.getElementById('bindTelegramLinkReg').href = bindUrl;
+                    }
+                    
+                    // Начинаем проверять привязку
+                    startBindingCheck();
                 } else {
                     showError(data.detail || 'Ошибка регистрации');
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Зарегистрироваться';
+                    continueToStep4.disabled = false;
+                    continueToStep4.textContent = 'Продолжить';
                 }
             } catch (error) {
                 showError('Ошибка подключения к серверу');
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Зарегистрироваться';
+                continueToStep4.disabled = false;
+                continueToStep4.textContent = 'Продолжить';
             }
         });
+
+        // Повторная отправка кода
+        resendLink.addEventListener('click', async () => {
+            if (resendLink.classList.contains('disabled')) return;
+
+            try {
+                const response = await fetch('/api/auth/register/send-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: userData.name, email: userData.email })
+                });
+
+                if (response.ok) {
+                    showInfo('Код отправлен повторно');
+                    codeInputs.forEach(input => input.value = '');
+                    codeInputs[0].focus();
+                    startResendTimer(60);
+                } else {
+                    showError('Ошибка отправки кода');
+                }
+            } catch (error) {
+                showError('Ошибка подключения к серверу');
+            }
+        });
+
+        // Навигация
+        backToStep1.addEventListener('click', () => goToStep(1));
+        backToStep2.addEventListener('click', () => goToStep(2));
+        backToStep3.addEventListener('click', () => {
+            // Останавливаем проверку привязки
+            if (bindingCheckInterval) {
+                clearInterval(bindingCheckInterval);
+                bindingCheckInterval = null;
+            }
+            goToStep(3);
+        });
+
+        function goToStep(step) {
+            // Скрываем все шаги
+            Object.values(steps).forEach(s => s.classList.remove('active'));
+            Object.values(stepBars).forEach(s => s.classList.remove('active'));
+
+            // Показываем нужный шаг
+            steps[step].classList.add('active');
+            for (let i = 1; i <= step; i++) {
+                stepBars[i].classList.add('active');
+            }
+
+            // Обновляем подзаголовок
+            const subtitles = {
+                1: 'Шаг 1: Введите данные',
+                2: 'Шаг 2: Подтвердите email',
+                3: 'Шаг 3: Создайте пароль',
+                4: 'Шаг 4: Привязка Telegram'
+            };
+            stepSubtitle.textContent = subtitles[step];
+
+            currentStep = step;
+
+            // Фокус на первое поле
+            if (step === 1) {
+                document.getElementById('name').focus();
+            } else if (step === 2) {
+                codeInputs[0].focus();
+            } else if (step === 3) {
+                document.getElementById('password').focus();
+            }
+        }
+
+        // Проверка привязки Telegram
+        function startBindingCheck() {
+            const statusDiv = document.getElementById('bindingStatus');
+            
+            bindingCheckInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/telegram/status', {
+                        headers: {
+                            'Authorization': `Bearer ${userData.token}`
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.telegram_bound) {
+                        // Привязка успешна!
+                        clearInterval(bindingCheckInterval);
+                        bindingCheckInterval = null;
+                        
+                        statusDiv.innerHTML = '<span style="color: #10b981; font-weight: 600;">✓ Telegram успешно привязан!</span>';
+                        
+                        showSuccess('Регистрация завершена! Перенаправление...');
+                        
+                        // Сохраняем токен и перенаправляем
+                        localStorage.setItem('auth_token', userData.token);
+                        
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 1500);
+                    }
+                } catch (error) {
+                    console.error('Error checking binding:', error);
+                }
+            }, 2000); // Проверяем каждые 2 секунды
+        }
+
+        function startResendTimer(seconds) {
+            resendSeconds = seconds;
+            resendLink.classList.add('disabled');
+            updateTimer();
+
+            resendTimer = setInterval(() => {
+                resendSeconds--;
+                if (resendSeconds <= 0) {
+                    clearInterval(resendTimer);
+                    resendLink.classList.remove('disabled');
+                    document.getElementById('timer').textContent = '';
+                } else {
+                    updateTimer();
+                }
+            }, 1000);
+        }
+
+        function updateTimer() {
+            document.getElementById('timer').textContent = `Повторная отправка через ${resendSeconds} сек`;
+        }
 
         function showError(message) {
             errorMessage.textContent = message;
             errorMessage.classList.add('show');
             successMessage.classList.remove('show');
-            
-            setTimeout(() => {
-                errorMessage.classList.remove('show');
-            }, 5000);
+            infoMessage.classList.remove('show');
+            setTimeout(() => errorMessage.classList.remove('show'), 5000);
         }
 
         function showSuccess(message) {
             successMessage.textContent = message;
             successMessage.classList.add('show');
             errorMessage.classList.remove('show');
+            infoMessage.classList.remove('show');
         }
+
+        function showInfo(message) {
+            infoMessage.textContent = message;
+            infoMessage.classList.add('show');
+            errorMessage.classList.remove('show');
+            successMessage.classList.remove('show');
+            setTimeout(() => infoMessage.classList.remove('show'), 5000);
+        }
+
+        // Автофокус на первое поле
+        document.getElementById('name').focus();
     </script>
 </body>
 </html>

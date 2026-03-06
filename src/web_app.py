@@ -19,6 +19,7 @@ import json
 import asyncio
 import secrets
 import hashlib
+import logging
 from calendar import monthrange
 from urllib.parse import unquote
 
@@ -121,17 +122,97 @@ async def index(request: Request):
 
 class RegisterRequest(BaseModel):
     email: str
+    name: str
+
+class VerifyCodeRequest(BaseModel):
+    email: str
+    code: str
     password: str
     name: str
+
+class VerifyCodeOnlyRequest(BaseModel):
+    email: str
+    code: str
 
 class LoginRequest(BaseModel):
     email: str
     password: str
 
-@app.post("/api/auth/register")
-async def register(request: RegisterRequest):
-    """Регистрация репетитора"""
-    result = simple_auth.register(request.email, request.password, request.name)
+class ResendCodeRequest(BaseModel):
+    email: str
+    name: str
+
+@app.post("/api/auth/verify-code")
+async def verify_code_only(request: VerifyCodeOnlyRequest):
+    """Проверить код подтверждения (без удаления)"""
+    import verification_codes
+    
+    codes = verification_codes.load_codes()
+    
+    if request.email not in codes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Код не найден или истек"
+        )
+    
+    stored = codes[request.email]
+    
+    # Проверяем срок действия
+    expires_at = datetime.fromisoformat(stored['expires_at'])
+    if datetime.now() > expires_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Код истек. Запросите новый"
+        )
+    
+    # Проверяем код
+    if stored['code'] != request.code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный код"
+        )
+    
+    return {"status": "success", "message": "Код подтвержден"}
+
+@app.post("/api/auth/register/send-code")
+async def send_registration_code(request: RegisterRequest):
+    """Отправить код подтверждения для регистрации"""
+    import verification_codes
+    import email_service
+    
+    # Проверяем что репетитор еще не зарегистрирован
+    if simple_auth.is_registered():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Репетитор уже зарегистрирован"
+        )
+    
+    # Генерируем и отправляем код
+    code = verification_codes.create_verification_code(request.email, request.name)
+    success = email_service.send_verification_code(request.email, code, request.name)
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Не удалось отправить код. Проверьте настройки SMTP."
+        )
+    
+    return {"status": "success", "message": "Код отправлен на email"}
+
+@app.post("/api/auth/register/verify")
+async def verify_and_register(request: VerifyCodeRequest):
+    """Проверить код и завершить регистрацию"""
+    import verification_codes
+    
+    # Проверяем код
+    if not verification_codes.verify_code(request.email, request.code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный или истекший код"
+        )
+    
+    # Регистрируем репетитора
+    result = simple_auth.register(request.email, request.password, request.name, verified=True)
     
     if not result['success']:
         raise HTTPException(
@@ -139,7 +220,26 @@ async def register(request: RegisterRequest):
             detail=result['message']
         )
     
-    return {"status": "success", "message": result['message']}
+    # Создаем токен и возвращаем
+    token = create_token()
+    tutor_info = simple_auth.get_tutor_info()
+    
+    return {
+        "status": "success",
+        "message": result['message'],
+        "token": token,
+        "tutor": tutor_info,
+        "bind_token": result.get('bind_token'),  # Токен для привязки Telegram
+        "telegram_bound": simple_auth.is_telegram_bound()
+    }
+
+@app.post("/api/auth/register")
+async def register(request: RegisterRequest):
+    """Регистрация репетитора (старый метод - оставлен для совместимости)"""
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Используйте новый метод регистрации с подтверждением email"
+    )
 
 @app.post("/api/auth/login")
 async def login(request: LoginRequest):
@@ -162,6 +262,141 @@ async def login(request: LoginRequest):
 async def logout(authenticated: bool = Depends(verify_token)):
     """Выход из системы"""
     return {"status": "success"}
+
+@app.put("/api/profile/update")
+async def update_profile(name: dict, authenticated: bool = Depends(verify_token)):
+    """Обновить профиль репетитора"""
+    import simple_auth
+    
+    new_name = name.get('name', '').strip()
+    
+    if not new_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Имя не может быть пустым"
+        )
+    
+    # Обновляем имя в файле авторизации
+    auth_data = simple_auth.load_auth()
+    
+    if not auth_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Профиль не найден"
+        )
+    
+    auth_data['name'] = new_name
+    simple_auth.save_auth(auth_data)
+    
+    return {"status": "success", "message": "Профиль обновлен"}
+
+@app.get("/api/telegram/status")
+async def get_telegram_status(authenticated: bool = Depends(verify_token)):
+    """Получить статус привязки Telegram"""
+    import simple_auth
+    
+    is_bound = simple_auth.is_telegram_bound()
+    bind_token = simple_auth.get_bind_token()
+    bot_username = os.getenv('BOT_USERNAME', 'YourBot')
+    
+    bind_url = None
+    if bind_token and not is_bound:
+        bind_url = f"https://t.me/{bot_username}?start=BIND_{bind_token}"
+    
+    return {
+        "telegram_bound": is_bound,
+        "bind_url": bind_url
+    }
+
+@app.get("/api/bot-info")
+async def get_bot_info():
+    """Получить информацию о боте (публичный endpoint)"""
+    bot_username = os.getenv('BOT_USERNAME', 'YourBot')
+    return {
+        "bot_username": bot_username
+    }
+
+class DeleteAccountRequest(BaseModel):
+    password: str
+
+@app.delete("/api/account/delete")
+async def delete_account(request: DeleteAccountRequest, authenticated: bool = Depends(verify_token)):
+    """Удалить аккаунт репетитора и все связанные данные"""
+    import simple_auth
+    
+    # Проверяем пароль
+    auth_data = simple_auth.load_auth()
+    
+    if not auth_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Аккаунт не найден"
+        )
+    
+    # Проверяем пароль
+    password_hash = simple_auth.hash_password(request.password)
+    if auth_data.get('password_hash') != password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный пароль"
+        )
+    
+    tutor_id = auth_data.get('tutor_id')
+    
+    # Удаляем все данные репетитора
+    try:
+        # 1. Удаляем всех учеников репетитора
+        students = await db.get_students_by_tutor(tutor_id)
+        all_students = await db.get_students()
+        for student_id in students.keys():
+            if student_id in all_students:
+                del all_students[student_id]
+        await db.save_students(all_students)
+        
+        # 2. Удаляем все уроки репетитора
+        lessons = await lessons_db.load_lessons()
+        lessons_to_delete = []
+        for lesson_id, lesson in lessons.items():
+            student_id = str(lesson['student_id'])
+            if student_id in students:
+                lessons_to_delete.append(lesson_id)
+        
+        for lesson_id in lessons_to_delete:
+            del lessons[lesson_id]
+        await lessons_db.save_lessons(lessons)
+        
+        # 3. Удаляем шаблоны расписания
+        templates = await recurring_db.load_recurring()
+        templates_to_delete = []
+        for template_id, template in templates.items():
+            student_id = str(template['student_id'])
+            if student_id in students:
+                templates_to_delete.append(template_id)
+        
+        for template_id in templates_to_delete:
+            del templates[template_id]
+        await recurring_db.save_recurring(templates)
+        
+        # 4. Удаляем старое расписание (если есть)
+        schedule = await db.get_schedule()
+        for student_id in students.keys():
+            if student_id in schedule:
+                del schedule[student_id]
+        await db.save_schedule(schedule)
+        
+        # 5. Удаляем файл авторизации репетитора
+        auth_file = simple_auth.get_file_path()
+        if os.path.exists(auth_file):
+            os.remove(auth_file)
+        
+        return {"status": "success", "message": "Аккаунт удален"}
+        
+    except Exception as e:
+        logging.error(f"Error deleting account: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ошибка при удалении аккаунта"
+        )
 
 # === API endpoints ===
 

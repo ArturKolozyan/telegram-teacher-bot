@@ -131,7 +131,7 @@ async def check_and_send_reminders(bot: Bot):
     except Exception as e:
         logging.error(f"Ошибка в check_and_send_reminders: {e}")
 
-async def check_and_send_homework_reports(bot: Bot, admin_id: int):
+async def check_and_send_homework_reports(bot: Bot):
     """Проверить и отправить уведомление админу о неответивших учениках"""
     try:
         settings = await db.get_settings()
@@ -148,9 +148,14 @@ async def check_and_send_homework_reports(bot: Bot, admin_id: int):
         # Время урока = текущее время + время отчета
         lesson_time = current_minute + timedelta(minutes=report_minutes)
         
-        # Получаем tutor_id админа по его telegram ID
-        import simple_auth
+        # Получаем tutor_id и telegram_id админа
         tutor_id = simple_auth.get_tutor_id()
+        tutor_info = simple_auth.get_tutor_info()
+        admin_telegram_id = tutor_info.get('telegram_id') if tutor_info else None
+        
+        if not admin_telegram_id:
+            # Telegram не привязан - пропускаем
+            return
         
         # Получаем уроки на это время только для этого репетитора
         lessons = await get_lessons_for_datetime(lesson_time, admin_tz_offset, tutor_id)
@@ -191,7 +196,7 @@ async def check_and_send_homework_reports(bot: Bot, admin_id: int):
                 message += f"• {student['name']} {student['username']}\n"
             
             try:
-                await bot.send_message(admin_id, message)
+                await bot.send_message(admin_telegram_id, message)
                 logging.info(f"Отправлено уведомление админу о неответивших учениках")
             except Exception as e:
                 logging.error(f"Не удалось отправить уведомление админу: {e}")
@@ -199,7 +204,7 @@ async def check_and_send_homework_reports(bot: Bot, admin_id: int):
     except Exception as e:
         logging.error(f"Ошибка в check_and_send_homework_reports: {e}")
 
-async def send_admin_daily_reminder(bot: Bot, admin_id: int):
+async def send_admin_daily_reminder(bot: Bot):
     """Отправить админу ежедневное напоминание о расписании"""
     try:
         settings = await db.get_settings()
@@ -209,9 +214,14 @@ async def send_admin_daily_reminder(bot: Bot, admin_id: int):
         admin_tz = pytz.timezone(f'Etc/GMT{-admin_tz_offset:+d}')
         now_admin = datetime.now(admin_tz)
         
-        # Получаем tutor_id админа
-        import simple_auth
+        # Получаем tutor_id и telegram_id
         tutor_id = simple_auth.get_tutor_id()
+        tutor_info = simple_auth.get_tutor_info()
+        admin_telegram_id = tutor_info.get('telegram_id') if tutor_info else None
+        
+        if not admin_telegram_id:
+            # Telegram не привязан - пропускаем
+            return
         
         # Получаем все уроки на сегодня
         schedule = await db.get_schedule()
@@ -266,7 +276,7 @@ async def send_admin_daily_reminder(bot: Bot, admin_id: int):
                 message += f"├ {lesson['time']} - {name} {username_str}\n"
         
         try:
-            await bot.send_message(admin_id, message)
+            await bot.send_message(admin_telegram_id, message)
             logging.info("Отправлено ежедневное напоминание админу")
         except Exception as e:
             logging.error(f"Не удалось отправить ежедневное напоминание админу: {e}")

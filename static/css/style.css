@@ -205,10 +205,6 @@ body {
     background: #fafafa;
 }
 
-.calendar-day.weekend {
-    background: #fef9f5;
-}
-
 .calendar-day.today {
     background: #eff6ff;
     border: 2px solid var(--primary);
@@ -315,6 +311,7 @@ body {
     background: var(--success);
     color: white;
     border: none;
+    border-radius: 0.5rem;
     font-size: 1.25rem;
     cursor: pointer;
     display: flex;
@@ -423,6 +420,7 @@ body {
     background: var(--danger);
     color: white;
     border: none;
+    border-radius: 0.25rem;
     width: 18px;
     height: 18px;
     font-size: 0.75rem;
@@ -441,6 +439,7 @@ body {
     background: var(--success);
     color: white;
     border: none;
+    border-radius: 0.5rem;
     width: 24px;
     height: 24px;
     font-size: 1.25rem;
@@ -681,7 +680,7 @@ body {
 .action-btn {
     width: 32px;
     height: 32px;
-    border-radius: 0;
+    border-radius: 0.5rem;
     border: 1px solid var(--border);
     background: white;
     color: var(--text-secondary);
@@ -737,6 +736,7 @@ body {
     align-items: center;
     gap: 0.5rem;
     border-bottom: 1px solid var(--border);
+    border-radius: 0;
 }
 
 .menu-item:last-child {
@@ -807,7 +807,7 @@ body {
 .btn {
     padding: 0.625rem 1.5rem;
     border: none;
-    border-radius: 0;
+    border-radius: 0.75rem;
     font-weight: 600;
     font-size: 0.875rem;
     cursor: pointer;
@@ -879,6 +879,7 @@ body {
     font-size: 1.25rem;
     background: var(--secondary);
     color: white;
+    border-radius: 0.5rem;
 }
 
 .btn-icon:hover {
@@ -961,7 +962,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 0.25rem;
+    border-radius: 0.5rem;
     transition: all 0.2s;
 }
 
@@ -1086,6 +1087,48 @@ body {
 }
 
 /* === Dashboard === */
+.tutor-profile {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 2rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    max-width: 800px;
+    position: relative;
+}
+
+.profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 0.75rem;
+    background: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.profile-info {
+    flex: 1;
+}
+
+.profile-name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.profile-email {
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
 .dashboard-stats {
     max-width: 800px;
 }
@@ -1511,4 +1554,66 @@ body {
 
 .history-stat-money {
     color: var(--success);
+}
+
+
+/* === Раздел аккаунта === */
+.account-section {
+    margin-top: 3rem;
+    padding: 2rem;
+    border: 2px solid var(--border);
+    border-radius: 0.75rem;
+    background: var(--bg-card);
+}
+
+.account-info-card {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+}
+
+.account-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+}
+
+.account-info-row:not(:last-child) {
+    border-bottom: 1px solid var(--border);
+}
+
+.account-info-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.account-info-value {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+/* === Опасная зона === */
+.danger-zone {
+    margin-top: 3rem;
+    padding: 2rem;
+    border: 2px solid var(--danger);
+    border-radius: 0.75rem;
+    background: #fef2f2;
+}
+
+.danger-zone-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--danger);
+    margin-bottom: 0.75rem;
+}
+
+.danger-zone-description {
+    color: #991b1b;
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
 }

@@ -95,6 +95,22 @@ function initNavigation() {
 // === Личный кабинет ===
 async function loadDashboard() {
     try {
+        // Загружаем профиль
+        const settingsResponse = await fetchWithAuth(`${API_URL}/api/settings`);
+        const settingsData = await settingsResponse.json();
+        
+        if (settingsData.tutor_info) {
+            const tutor = settingsData.tutor_info;
+            document.getElementById('profileName').textContent = tutor.name || 'Репетитор';
+            document.getElementById('profileEmail').textContent = tutor.email || '';
+            
+            // Инициалы для аватара
+            const nameParts = (tutor.name || 'Репетитор').split(' ');
+            const initials = nameParts.map(part => part[0]).join('').toUpperCase().slice(0, 2);
+            document.getElementById('profileInitials').textContent = initials;
+        }
+        
+        // Загружаем статистику
         const response = await fetchWithAuth(`${API_URL}/api/dashboard/stats`);
         const data = await response.json();
         
@@ -1005,6 +1021,12 @@ async function loadSettings() {
         } else {
             document.getElementById('inviteLink').value = 'Ссылка недоступна. Проверьте настройки бота.';
         }
+        
+        // Отображаем данные профиля в разделе аккаунта
+        if (data.tutor_info) {
+            document.getElementById('accountName').textContent = data.tutor_info.name || '—';
+            document.getElementById('accountEmail').textContent = data.tutor_info.email || '—';
+        }
     } catch (error) {
         console.error('Error loading settings:', error);
     }
@@ -1326,3 +1348,199 @@ function copyInviteLink() {
         alert('Не удалось скопировать ссылку');
     }
 }
+
+// === Редактирование профиля ===
+let currentTutorData = null;
+
+async function openEditProfileModal() {
+    const modal = document.getElementById('editProfileModal');
+    
+    try {
+        // Загружаем текущие данные профиля
+        const response = await fetchWithAuth(`${API_URL}/api/settings`);
+        const data = await response.json();
+        
+        if (data.tutor_info) {
+            currentTutorData = data.tutor_info;
+            
+            // Разделяем имя на имя и фамилию
+            const nameParts = (data.tutor_info.name || '').split(' ');
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || '';
+            
+            document.getElementById('editProfileFirstName').value = firstName;
+            document.getElementById('editProfileLastName').value = lastName;
+            document.getElementById('editProfileEmail').value = data.tutor_info.email || '';
+        }
+        
+        modal.classList.add('active');
+    } catch (error) {
+        console.error('Error loading profile:', error);
+        alert('Ошибка загрузки профиля');
+    }
+}
+
+// Обработчик формы редактирования профиля
+document.getElementById('editProfileForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const firstName = document.getElementById('editProfileFirstName').value.trim();
+    const lastName = document.getElementById('editProfileLastName').value.trim();
+    
+    if (!firstName || !lastName) {
+        alert('Заполните все поля');
+        return;
+    }
+    
+    const fullName = `${firstName} ${lastName}`;
+    
+    try {
+        const response = await fetchWithAuth(`${API_URL}/api/profile/update`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name: fullName })
+        });
+        
+        if (response.ok) {
+            // Закрываем модалку
+            document.getElementById('editProfileModal').classList.remove('active');
+            
+            // Обновляем отображение профиля в личном кабинете
+            document.getElementById('profileName').textContent = fullName;
+            
+            // Обновляем инициалы
+            const initials = `${firstName[0]}${lastName[0]}`.toUpperCase();
+            document.getElementById('profileInitials').textContent = initials;
+            
+            // Обновляем данные в разделе аккаунта в настройках
+            document.getElementById('accountName').textContent = fullName;
+            
+            alert('Профиль обновлен');
+        } else {
+            const data = await response.json();
+            alert(data.detail || 'Ошибка обновления профиля');
+        }
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        alert('Ошибка подключения к серверу');
+    }
+});
+
+
+// === Привязка Telegram ===
+async function checkTelegramBinding() {
+    // Проверяем параметр URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const shouldBind = urlParams.get('bind_telegram');
+    
+    if (shouldBind === 'true') {
+        // Убираем параметр из URL
+        window.history.replaceState({}, document.title, '/');
+        
+        // Показываем модалку привязки
+        await showBindTelegramModal();
+    }
+}
+
+async function showBindTelegramModal() {
+    try {
+        const response = await fetchWithAuth(`${API_URL}/api/telegram/status`);
+        const data = await response.json();
+        
+        if (data.telegram_bound) {
+            // Уже привязан
+            return;
+        }
+        
+        if (data.bind_url) {
+            // Устанавливаем ссылку
+            document.getElementById('bindTelegramLink').href = data.bind_url;
+            
+            // Показываем модалку
+            document.getElementById('bindTelegramModal').classList.add('active');
+        }
+    } catch (error) {
+        console.error('Error checking telegram status:', error);
+    }
+}
+
+// Проверяем привязку при загрузке
+document.addEventListener('DOMContentLoaded', () => {
+    checkTelegramBinding();
+});
+
+
+// === Удаление аккаунта ===
+function openDeleteAccountModal() {
+    document.getElementById('deleteAccountModal').classList.add('active');
+    document.getElementById('deleteAccountPassword').value = '';
+    document.getElementById('deleteAccountPassword').focus();
+}
+
+document.getElementById('deleteAccountForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const password = document.getElementById('deleteAccountPassword').value;
+    
+    if (!password) {
+        alert('Введите пароль');
+        return;
+    }
+    
+    // Дополнительное подтверждение
+    const confirmed = confirm(
+        'Вы уверены? Это действие нельзя отменить!\n\n' +
+        'Все данные будут удалены безвозвратно.'
+    );
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        // Используем обычный fetch вместо fetchWithAuth, чтобы самостоятельно обработать 401 ошибку
+        const token = localStorage.getItem('auth_token');
+        
+        const response = await fetch(`${API_URL}/api/account/delete`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ password })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            alert('Аккаунт успешно удален');
+            
+            // Удаляем токен и перенаправляем на страницу входа
+            localStorage.removeItem('auth_token');
+            window.location.href = '/login';
+        } else {
+            // Обрабатываем ошибки
+            let errorMessage = 'Ошибка удаления аккаунта';
+            
+            if (response.status === 401) {
+                errorMessage = 'Неверный пароль';
+            } else {
+                try {
+                    const data = await response.json();
+                    errorMessage = data.detail || errorMessage;
+                } catch (jsonError) {
+                    // Если не удалось распарсить JSON, используем стандартное сообщение
+                }
+            }
+            
+            alert(errorMessage);
+            
+            // Очищаем поле пароля
+            document.getElementById('deleteAccountPassword').value = '';
+        }
+    } catch (error) {
+        console.error('Error deleting account:', error);
+        alert('Ошибка подключения к серверу');
+    }
+});

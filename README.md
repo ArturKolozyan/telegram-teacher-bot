@@ -32,11 +32,26 @@ pip install -r requirements.txt
 2. Создайте файл `.env`:
 ```
 BOT_TOKEN=ваш_токен_от_BotFather
+BOT_USERNAME=YourBot
 ADMIN_ID=ваш_telegram_id
 PORT=8000
 WEB_URL=http://localhost:8000
 WEB_SERVER_URL=http://localhost:8000
+
+# SMTP для отправки кодов подтверждения
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASSWORD=your_app_password
+FROM_EMAIL=your_email@gmail.com
+FROM_NAME=Tutor Bot
 ```
+
+**Настройка Gmail для SMTP:**
+1. Включите двухфакторную аутентификацию в Google аккаунте
+2. Перейдите в [App Passwords](https://myaccount.google.com/apppasswords)
+3. Создайте пароль приложения для "Mail"
+4. Используйте этот пароль в `SMTP_PASSWORD`
 
 3. Запустите систему:
 ```bash
@@ -47,11 +62,14 @@ python start.py
 
 5. **Первый запуск - Регистрация:**
    - При первом открытии вы увидите страницу регистрации
-   - Введите ваше имя, email и пароль
+   - Введите ваше имя и email
+   - Нажмите "Получить код" - на email придет 4-значный код
+   - Введите код из письма
+   - Создайте пароль
    - После регистрации вы автоматически войдете в систему
    - При следующих запусках используйте email и пароль для входа
 
-**Примечание:** Email и пароль используются только для входа в веб-панель. Telegram бот работает через `ADMIN_ID` из `.env` файла.
+**Примечание:** Email используется для входа в веб-панель и получения кодов подтверждения. Telegram бот работает через `ADMIN_ID` из `.env` файла.
 
 ## Деплой на Railway
 
@@ -77,9 +95,18 @@ git push
 
 ```
 BOT_TOKEN=ваш_токен_от_BotFather
+BOT_USERNAME=YourBot
 ADMIN_ID=ваш_telegram_id
 WEB_URL=https://ваш-проект.railway.app
 WEB_SERVER_URL=http://localhost:8000
+
+# SMTP для отправки кодов подтверждения
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASSWORD=your_app_password
+FROM_EMAIL=your_email@gmail.com
+FROM_NAME=Tutor Bot
 ```
 
 **Важно:** `WEB_URL` нужно будет обновить после первого деплоя, когда Railway выдаст вам домен.
@@ -96,7 +123,10 @@ WEB_SERVER_URL=http://localhost:8000
 ### Шаг 5: Проверка
 
 1. Откройте ваш URL в браузере
-2. При первом открытии пройдите регистрацию (имя, email, пароль)
+2. При первом открытии пройдите регистрацию:
+   - Введите имя и email
+   - Получите код на email (проверьте папку "Спам")
+   - Введите код и создайте пароль
 3. После регистрации вы автоматически войдете в систему
 4. Напишите боту в Telegram `/start` - бот должен ответить
 
